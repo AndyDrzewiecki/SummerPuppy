@@ -104,6 +104,18 @@ class ActionRequest(BaseModel):
     expires_utc: datetime | None = None
 
 
+class AnalysisResult(BaseModel):
+    threat_type: str
+    attack_vector: str
+    affected_systems: list[str] = Field(default_factory=list)
+    ioc_indicators: list[str] = Field(default_factory=list)
+    severity_assessment: Severity
+    confidence: float = Field(ge=0, le=1)
+    reasoning: str
+    recommended_actions: list[str] = Field(default_factory=list)
+    mitre_attack_ids: list[str] = Field(default_factory=list)
+
+
 class ActionOutcome(BaseModel):
     outcome_id: str = Field(default_factory=lambda: str(uuid4()))
     request_id: str

@@ -22,7 +22,7 @@ class TestTopic:
         assert Topic.PHASE_TRANSITIONS == "PHASE_TRANSITIONS"
 
     def test_member_count(self) -> None:
-        assert len(Topic) == 6
+        assert len(Topic) == 7
 
 
 # ---------------------------------------------------------------------------

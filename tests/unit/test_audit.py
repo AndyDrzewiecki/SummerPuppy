@@ -37,7 +37,7 @@ class TestAuditEntryType:
         assert AuditEntryType.POLICY_CHANGED == "POLICY_CHANGED"
 
     def test_member_count(self) -> None:
-        assert len(AuditEntryType) == 12
+        assert len(AuditEntryType) == 13
 
 
 # ---------------------------------------------------------------------------

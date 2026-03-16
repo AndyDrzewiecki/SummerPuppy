@@ -5,6 +5,7 @@ from __future__ import annotations
 from summer_puppy.events.models import (
     ActionOutcome,
     ActionRequest,
+    AnalysisResult,
     ApprovalMethod,
     EventSource,
     EventStatus,
@@ -17,6 +18,7 @@ from summer_puppy.events.models import (
 __all__ = [
     "ActionOutcome",
     "ActionRequest",
+    "AnalysisResult",
     "ApprovalMethod",
     "EventSource",
     "EventStatus",

@@ -21,6 +21,7 @@ class AuditEntryType(StrEnum):
     ROLLBACK_INITIATED = "ROLLBACK_INITIATED"
     PHASE_TRANSITION = "PHASE_TRANSITION"
     POLICY_CHANGED = "POLICY_CHANGED"
+    ANALYSIS_COMPLETED = "analysis_completed"
 
 
 class AuditEntry(BaseModel):

@@ -4,18 +4,23 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from summer_puppy.audit.logger import InMemoryAuditLogger  # noqa: TC001
-from summer_puppy.channel.bus import InMemoryEventBus  # noqa: TC001
+from summer_puppy.audit.logger import AuditLogger  # noqa: TC001
+from summer_puppy.channel.bus import EventBus  # noqa: TC001
 from summer_puppy.events.models import SecurityEvent  # noqa: TC001
+from summer_puppy.llm.client import LLMClient  # noqa: TC001
 from summer_puppy.logging.config import correlation_context, get_logger
+from summer_puppy.memory.store import KnowledgeStore  # noqa: TC001
 from summer_puppy.pipeline.handlers import (
     CloseHandler,
     IntakeHandler,
+    LLMAnalyzeHandler,
+    LLMRecommendHandler,
     PassthroughAnalyzeHandler,
     PassthroughRecommendHandler,
     PassthroughTriageHandler,
     StepHandler,
     StubExecuteHandler,
+    TriageHandler,
     TrustApprovalHandler,
     VerifyHandler,
 )
@@ -46,8 +51,8 @@ class Orchestrator:
 
     def __init__(
         self,
-        audit_logger: InMemoryAuditLogger,
-        event_bus: InMemoryEventBus,
+        audit_logger: AuditLogger,
+        event_bus: EventBus,
     ) -> None:
         self._audit_logger = audit_logger
         self._event_bus = event_bus
@@ -101,8 +106,10 @@ class Orchestrator:
     @classmethod
     def build_default(
         cls,
-        audit_logger: InMemoryAuditLogger,
-        event_bus: InMemoryEventBus,
+        audit_logger: AuditLogger,
+        event_bus: EventBus,
+        llm_client: LLMClient | None = None,
+        knowledge_store: KnowledgeStore | None = None,
     ) -> Orchestrator:
         """Create an orchestrator with all default handlers registered."""
         orch = cls(audit_logger=audit_logger, event_bus=event_bus)
@@ -110,18 +117,48 @@ class Orchestrator:
             PipelineStage.INTAKE,
             IntakeHandler(audit_logger=audit_logger, event_bus=event_bus),
         )
-        orch.register_handler(
-            PipelineStage.TRIAGE,
-            PassthroughTriageHandler(audit_logger=audit_logger, event_bus=event_bus),
-        )
-        orch.register_handler(
-            PipelineStage.ANALYZE,
-            PassthroughAnalyzeHandler(audit_logger=audit_logger, event_bus=event_bus),
-        )
-        orch.register_handler(
-            PipelineStage.RECOMMEND,
-            PassthroughRecommendHandler(audit_logger=audit_logger, event_bus=event_bus),
-        )
+        if knowledge_store is not None:
+            orch.register_handler(
+                PipelineStage.TRIAGE,
+                TriageHandler(
+                    knowledge_store=knowledge_store,
+                    audit_logger=audit_logger,
+                    event_bus=event_bus,
+                ),
+            )
+        else:
+            orch.register_handler(
+                PipelineStage.TRIAGE,
+                PassthroughTriageHandler(audit_logger=audit_logger, event_bus=event_bus),
+            )
+        if llm_client is not None:
+            orch.register_handler(
+                PipelineStage.ANALYZE,
+                LLMAnalyzeHandler(
+                    llm_client=llm_client,
+                    audit_logger=audit_logger,
+                    event_bus=event_bus,
+                ),
+            )
+        else:
+            orch.register_handler(
+                PipelineStage.ANALYZE,
+                PassthroughAnalyzeHandler(audit_logger=audit_logger, event_bus=event_bus),
+            )
+        if llm_client is not None:
+            orch.register_handler(
+                PipelineStage.RECOMMEND,
+                LLMRecommendHandler(
+                    llm_client=llm_client,
+                    audit_logger=audit_logger,
+                    event_bus=event_bus,
+                ),
+            )
+        else:
+            orch.register_handler(
+                PipelineStage.RECOMMEND,
+                PassthroughRecommendHandler(audit_logger=audit_logger, event_bus=event_bus),
+            )
         orch.register_handler(
             PipelineStage.APPROVE,
             TrustApprovalHandler(audit_logger=audit_logger, event_bus=event_bus),
