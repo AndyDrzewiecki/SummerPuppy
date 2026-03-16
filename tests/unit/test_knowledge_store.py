@@ -230,6 +230,62 @@ class TestInMemoryKnowledgeStore:
         assert ctx is not None
         assert ctx.asset.name == "new-name"
 
+    async def test_store_and_get_work_item_summaries_round_trip(self) -> None:
+        store = InMemoryKnowledgeStore()
+        summary = {"customer_id": "cust-1", "title": "Patch CVE-2024-001", "status": "open"}
+        await store.store_work_item_summary("wi-1", summary)
+
+        results = await store.get_work_item_summaries("cust-1")
+        assert len(results) == 1
+        assert results[0]["work_item_id"] == "wi-1"
+        assert results[0]["title"] == "Patch CVE-2024-001"
+        assert results[0]["customer_id"] == "cust-1"
+
+    async def test_get_work_item_summaries_filters_by_customer(self) -> None:
+        store = InMemoryKnowledgeStore()
+        await store.store_work_item_summary("wi-1", {"customer_id": "cust-1", "title": "Task A"})
+        await store.store_work_item_summary("wi-2", {"customer_id": "cust-2", "title": "Task B"})
+        await store.store_work_item_summary("wi-3", {"customer_id": "cust-1", "title": "Task C"})
+
+        results_1 = await store.get_work_item_summaries("cust-1")
+        results_2 = await store.get_work_item_summaries("cust-2")
+        assert len(results_1) == 2
+        assert len(results_2) == 1
+        assert results_2[0]["title"] == "Task B"
+
+    async def test_get_work_item_summaries_respects_limit(self) -> None:
+        store = InMemoryKnowledgeStore()
+        for i in range(10):
+            await store.store_work_item_summary(f"wi-{i}", {"customer_id": "cust-1", "index": i})
+        results = await store.get_work_item_summaries("cust-1", limit=3)
+        assert len(results) == 3
+
+    async def test_store_artifact_stores_and_retrievable(self) -> None:
+        store = InMemoryKnowledgeStore()
+        artifact_data = {
+            "type": "report",
+            "work_item_id": "wi-1",
+            "content": "Analysis complete",
+        }
+        await store.store_artifact("art-1", artifact_data)
+
+        # Verify via internal state
+        assert "art-1" in store._artifacts_store
+        stored = store._artifacts_store["art-1"]
+        assert stored["artifact_id"] == "art-1"
+        assert stored["type"] == "report"
+        assert stored["work_item_id"] == "wi-1"
+        assert stored["content"] == "Analysis complete"
+
+    async def test_store_artifact_overwrites_existing(self) -> None:
+        store = InMemoryKnowledgeStore()
+        await store.store_artifact("art-1", {"type": "draft", "version": 1})
+        await store.store_artifact("art-1", {"type": "final", "version": 2})
+
+        stored = store._artifacts_store["art-1"]
+        assert stored["type"] == "final"
+        assert stored["version"] == 2
+
 
 # ---------------------------------------------------------------------------
 # Schema (CYPHER_CONSTRAINTS + init_schema)
@@ -249,6 +305,12 @@ class TestSchema:
 
     def test_constraints_contain_event_id(self) -> None:
         assert any("event_id" in c.lower() or "SecurityEvent" in c for c in CYPHER_CONSTRAINTS)
+
+    def test_constraints_contain_work_item_id(self) -> None:
+        assert any("work_item_id" in c.lower() or "WorkItem" in c for c in CYPHER_CONSTRAINTS)
+
+    def test_constraints_contain_artifact_id(self) -> None:
+        assert any("artifact_id" in c.lower() or "Artifact" in c for c in CYPHER_CONSTRAINTS)
 
     async def test_init_schema_executes_all_constraints(self) -> None:
         mock_session = AsyncMock()
@@ -336,3 +398,40 @@ class TestNeo4jKnowledgeStore:
         cypher = session.run.call_args[0][0]
         assert "MATCH" in cypher
         assert isinstance(outcomes, list)
+
+    async def test_store_work_item_summary_runs_merge_cypher(self) -> None:
+        driver, session = self._make_mock_driver()
+        store = Neo4jKnowledgeStore(driver)
+        await store.store_work_item_summary(
+            "wi-1", {"customer_id": "cust-1", "title": "Fix issue"}
+        )
+
+        session.run.assert_called_once()
+        cypher = session.run.call_args[0][0]
+        assert "MERGE" in cypher
+        assert "WorkItem" in cypher
+
+    async def test_get_work_item_summaries_runs_match_cypher(self) -> None:
+        driver, session = self._make_mock_driver()
+        mock_result = AsyncMock()
+        mock_result.data = AsyncMock(return_value=[])
+        session.run.return_value = mock_result
+
+        store = Neo4jKnowledgeStore(driver)
+        results = await store.get_work_item_summaries("cust-1", limit=10)
+
+        session.run.assert_called_once()
+        cypher = session.run.call_args[0][0]
+        assert "MATCH" in cypher
+        assert "WorkItem" in cypher
+        assert isinstance(results, list)
+
+    async def test_store_artifact_runs_merge_cypher(self) -> None:
+        driver, session = self._make_mock_driver()
+        store = Neo4jKnowledgeStore(driver)
+        await store.store_artifact("art-1", {"type": "report", "work_item_id": "wi-1"})
+
+        session.run.assert_called_once()
+        cypher = session.run.call_args[0][0]
+        assert "MERGE" in cypher
+        assert "Artifact" in cypher

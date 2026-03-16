@@ -24,6 +24,16 @@ class KnowledgeStore(Protocol):
 
     async def link_event_to_assets(self, event_id: str, asset_ids: list[str]) -> None: ...
 
+    async def store_work_item_summary(
+        self, work_item_id: str, summary: dict[str, Any]
+    ) -> None: ...
+
+    async def get_work_item_summaries(
+        self, customer_id: str, limit: int = 50
+    ) -> list[dict[str, Any]]: ...
+
+    async def store_artifact(self, artifact_id: str, artifact_data: dict[str, Any]) -> None: ...
+
 
 class InMemoryKnowledgeStore:
     """In-memory implementation of KnowledgeStore for testing and development."""
@@ -34,6 +44,8 @@ class InMemoryKnowledgeStore:
         self._event_outcomes: list[dict[str, Any]] = []
         self._asset_events: dict[str, list[str]] = defaultdict(list)  # event_id -> [asset_id]
         self._asset_vulns: dict[str, list[str]] = defaultdict(list)  # asset_id -> [cve_id]
+        self._work_item_summaries: list[dict[str, Any]] = []
+        self._artifacts_store: dict[str, dict[str, Any]] = {}
 
     async def store_asset(self, asset: AssetNode) -> None:
         self._assets[asset.id] = asset
@@ -77,6 +89,19 @@ class InMemoryKnowledgeStore:
 
     async def link_event_to_assets(self, event_id: str, asset_ids: list[str]) -> None:
         self._asset_events[event_id] = asset_ids
+
+    async def store_work_item_summary(self, work_item_id: str, summary: dict[str, Any]) -> None:
+        summary_with_id = {**summary, "work_item_id": work_item_id}
+        self._work_item_summaries.append(summary_with_id)
+
+    async def get_work_item_summaries(
+        self, customer_id: str, limit: int = 50
+    ) -> list[dict[str, Any]]:
+        filtered = [s for s in self._work_item_summaries if s.get("customer_id") == customer_id]
+        return filtered[:limit]
+
+    async def store_artifact(self, artifact_id: str, artifact_data: dict[str, Any]) -> None:
+        self._artifacts_store[artifact_id] = {**artifact_data, "artifact_id": artifact_id}
 
     def add_vulnerability(self, vuln: VulnerabilityNode) -> None:
         """Helper: register a vulnerability in the store."""
@@ -210,3 +235,45 @@ class Neo4jKnowledgeStore:
                     event_id=event_id,
                     asset_id=aid,
                 )
+
+    async def store_work_item_summary(self, work_item_id: str, summary: dict[str, Any]) -> None:
+        customer_id = summary.get("customer_id", "")
+        title = summary.get("title", "")
+        status = summary.get("status", "")
+        async with self._driver.session() as session:
+            await session.run(
+                "MERGE (w:WorkItem {work_item_id: $id}) "
+                "SET w.customer_id = $customer_id, w.title = $title, "
+                "w.status = $status, w.summary = $summary",
+                id=work_item_id,
+                customer_id=customer_id,
+                title=title,
+                status=status,
+                summary=str(summary),
+            )
+
+    async def get_work_item_summaries(
+        self, customer_id: str, limit: int = 50
+    ) -> list[dict[str, Any]]:
+        async with self._driver.session() as session:
+            result = await session.run(
+                "MATCH (w:WorkItem {customer_id: $customer_id}) RETURN w LIMIT $limit",
+                customer_id=customer_id,
+                limit=limit,
+            )
+            records = await result.data()
+            return [dict(r["w"]) for r in records]
+
+    async def store_artifact(self, artifact_id: str, artifact_data: dict[str, Any]) -> None:
+        artifact_type = artifact_data.get("type", "")
+        work_item_id = artifact_data.get("work_item_id", "")
+        async with self._driver.session() as session:
+            await session.run(
+                "MERGE (a:Artifact {artifact_id: $id}) "
+                "SET a.type = $type, a.work_item_id = $work_item_id, "
+                "a.data = $data",
+                id=artifact_id,
+                type=artifact_type,
+                work_item_id=work_item_id,
+                data=str(artifact_data),
+            )

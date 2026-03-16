@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from pydantic import BaseModel
+
 from summer_puppy.channel.bus import InMemoryEventBus
 from summer_puppy.channel.models import Envelope, Topic
 from summer_puppy.events.models import EventSource, SecurityEvent, Severity
@@ -22,7 +24,13 @@ class TestTopic:
         assert Topic.PHASE_TRANSITIONS == "PHASE_TRANSITIONS"
 
     def test_member_count(self) -> None:
-        assert len(Topic) == 7
+        assert len(Topic) == 11
+
+    def test_cross_pool_topic_values(self) -> None:
+        assert Topic.WORK_ITEMS == "WORK_ITEMS"
+        assert Topic.POOL_STATUS == "POOL_STATUS"
+        assert Topic.ARTIFACTS == "ARTIFACTS"
+        assert Topic.DECISIONS == "DECISIONS"
 
 
 # ---------------------------------------------------------------------------
@@ -294,6 +302,26 @@ class TestInMemoryEventBusAnyModel:
         assert envelope.payload_type == "summer_puppy.trust.models.TrustProfile"
         assert envelope.payload["customer_id"] == "cust-any-tp"
         assert envelope.payload["trust_phase"] == TrustPhase.MANUAL
+
+
+# ---------------------------------------------------------------------------
+# InMemoryEventBus — publish to cross-pool topics
+# ---------------------------------------------------------------------------
+
+
+class TestInMemoryEventBusCrossPoolTopics:
+    async def test_publish_work_item_to_work_items_topic(self) -> None:
+        class WorkItem(BaseModel):
+            item_id: str
+            description: str
+
+        bus = InMemoryEventBus()
+        work_item = WorkItem(item_id="wi-1", description="Investigate alert")
+        envelope = await bus.publish(Topic.WORK_ITEMS, work_item, customer_id="cust-cross")
+        assert isinstance(envelope, Envelope)
+        assert envelope.topic == Topic.WORK_ITEMS
+        assert envelope.payload["item_id"] == "wi-1"
+        assert envelope.payload["description"] == "Investigate alert"
 
 
 # ---------------------------------------------------------------------------

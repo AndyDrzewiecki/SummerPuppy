@@ -12,6 +12,15 @@ CYPHER_CONSTRAINTS: list[str] = [
         "CREATE CONSTRAINT event_id IF NOT EXISTS "
         "FOR (e:SecurityEvent) REQUIRE e.event_id IS UNIQUE"
     ),
+    # Work item and artifact uniqueness constraints
+    (
+        "CREATE CONSTRAINT work_item_id IF NOT EXISTS "
+        "FOR (w:WorkItem) REQUIRE w.work_item_id IS UNIQUE"
+    ),
+    (
+        "CREATE CONSTRAINT artifact_id IF NOT EXISTS "
+        "FOR (a:Artifact) REQUIRE a.artifact_id IS UNIQUE"
+    ),
     # Indexes for customer_id lookups
     "CREATE INDEX asset_customer IF NOT EXISTS FOR (a:Asset) ON (a.customer_id)",
     ("CREATE INDEX event_customer IF NOT EXISTS FOR (e:SecurityEvent) ON (e.customer_id)"),

@@ -22,6 +22,11 @@ class AuditEntryType(StrEnum):
     PHASE_TRANSITION = "PHASE_TRANSITION"
     POLICY_CHANGED = "POLICY_CHANGED"
     ANALYSIS_COMPLETED = "analysis_completed"
+    WORK_ITEM_ROUTED = "work_item_routed"
+    WORK_ITEM_COMPLETED = "work_item_completed"
+    WORK_ITEM_ESCALATED = "work_item_escalated"
+    POOL_REGISTERED = "pool_registered"
+    POOL_DEREGISTERED = "pool_deregistered"
 
 
 class AuditEntry(BaseModel):

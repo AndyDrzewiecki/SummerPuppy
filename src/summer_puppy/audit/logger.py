@@ -144,3 +144,97 @@ def log_phase_transition(
         new_state=to_phase,
         details=details or {},
     )
+
+
+def log_work_item_routed(
+    customer_id: str,
+    work_item_id: str,
+    correlation_id: str | None = None,
+    consumer_pool: str = "",
+    details: dict[str, Any] | None = None,
+) -> AuditEntry:
+    merged = {"consumer_pool": consumer_pool, **(details or {})}
+    return AuditEntry(
+        customer_id=customer_id,
+        entry_type=AuditEntryType.WORK_ITEM_ROUTED,
+        actor="pool_orchestrator",
+        correlation_id=correlation_id,
+        resource_id=work_item_id,
+        resource_type="work_item",
+        details=merged,
+    )
+
+
+def log_work_item_completed(
+    customer_id: str,
+    work_item_id: str,
+    correlation_id: str | None = None,
+    details: dict[str, Any] | None = None,
+) -> AuditEntry:
+    return AuditEntry(
+        customer_id=customer_id,
+        entry_type=AuditEntryType.WORK_ITEM_COMPLETED,
+        actor="pool_orchestrator",
+        correlation_id=correlation_id,
+        resource_id=work_item_id,
+        resource_type="work_item",
+        details=details or {},
+    )
+
+
+def log_work_item_escalated(
+    customer_id: str,
+    work_item_id: str,
+    correlation_id: str | None = None,
+    previous_priority: str = "",
+    new_priority: str = "",
+    details: dict[str, Any] | None = None,
+) -> AuditEntry:
+    merged = {
+        "previous_priority": previous_priority,
+        "new_priority": new_priority,
+        **(details or {}),
+    }
+    return AuditEntry(
+        customer_id=customer_id,
+        entry_type=AuditEntryType.WORK_ITEM_ESCALATED,
+        actor="pool_orchestrator",
+        correlation_id=correlation_id,
+        resource_id=work_item_id,
+        resource_type="work_item",
+        details=merged,
+    )
+
+
+def log_pool_registered(
+    customer_id: str,
+    pool_id: str,
+    pool_name: str = "",
+    details: dict[str, Any] | None = None,
+) -> AuditEntry:
+    merged = {"pool_name": pool_name, **(details or {})}
+    return AuditEntry(
+        customer_id=customer_id,
+        entry_type=AuditEntryType.POOL_REGISTERED,
+        actor="system",
+        resource_id=pool_id,
+        resource_type="pool",
+        details=merged,
+    )
+
+
+def log_pool_deregistered(
+    customer_id: str,
+    pool_id: str,
+    pool_name: str = "",
+    details: dict[str, Any] | None = None,
+) -> AuditEntry:
+    merged = {"pool_name": pool_name, **(details or {})}
+    return AuditEntry(
+        customer_id=customer_id,
+        entry_type=AuditEntryType.POOL_DEREGISTERED,
+        actor="system",
+        resource_id=pool_id,
+        resource_type="pool",
+        details=merged,
+    )

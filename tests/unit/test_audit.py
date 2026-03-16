@@ -11,7 +11,12 @@ from summer_puppy.audit.logger import (
     log_approval_decision,
     log_event_received,
     log_phase_transition,
+    log_pool_deregistered,
+    log_pool_registered,
     log_recommendation,
+    log_work_item_completed,
+    log_work_item_escalated,
+    log_work_item_routed,
     verify_chain,
 )
 from summer_puppy.audit.models import AuditEntry, AuditEntryType
@@ -37,7 +42,7 @@ class TestAuditEntryType:
         assert AuditEntryType.POLICY_CHANGED == "POLICY_CHANGED"
 
     def test_member_count(self) -> None:
-        assert len(AuditEntryType) == 13
+        assert len(AuditEntryType) == 18
 
 
 # ---------------------------------------------------------------------------
@@ -478,6 +483,115 @@ class TestConvenienceFactories:
         assert entry.new_state == "supervised"
         assert entry.details == {"reason": "threshold met"}
 
+    def test_log_work_item_routed(self) -> None:
+        entry = log_work_item_routed(
+            customer_id="cust-1",
+            work_item_id="wi-1",
+            correlation_id="corr-1",
+            consumer_pool="pool-alpha",
+            details={"urgency": "high"},
+        )
+        assert entry.entry_type == AuditEntryType.WORK_ITEM_ROUTED
+        assert entry.customer_id == "cust-1"
+        assert entry.resource_id == "wi-1"
+        assert entry.resource_type == "work_item"
+        assert entry.correlation_id == "corr-1"
+        assert entry.actor == "pool_orchestrator"
+        assert entry.details["consumer_pool"] == "pool-alpha"
+        assert entry.details["urgency"] == "high"
+
+    def test_log_work_item_routed_includes_consumer_pool_default(self) -> None:
+        entry = log_work_item_routed(
+            customer_id="cust-1",
+            work_item_id="wi-2",
+        )
+        assert entry.entry_type == AuditEntryType.WORK_ITEM_ROUTED
+        assert "consumer_pool" in entry.details
+        assert entry.details["consumer_pool"] == ""
+
+    def test_log_work_item_completed(self) -> None:
+        entry = log_work_item_completed(
+            customer_id="cust-1",
+            work_item_id="wi-1",
+            correlation_id="corr-1",
+            details={"duration_ms": 500},
+        )
+        assert entry.entry_type == AuditEntryType.WORK_ITEM_COMPLETED
+        assert entry.customer_id == "cust-1"
+        assert entry.resource_id == "wi-1"
+        assert entry.resource_type == "work_item"
+        assert entry.actor == "pool_orchestrator"
+        assert entry.details == {"duration_ms": 500}
+
+    def test_log_work_item_escalated(self) -> None:
+        entry = log_work_item_escalated(
+            customer_id="cust-1",
+            work_item_id="wi-1",
+            correlation_id="corr-1",
+            previous_priority="low",
+            new_priority="critical",
+            details={"reason": "SLA breach"},
+        )
+        assert entry.entry_type == AuditEntryType.WORK_ITEM_ESCALATED
+        assert entry.customer_id == "cust-1"
+        assert entry.resource_id == "wi-1"
+        assert entry.resource_type == "work_item"
+        assert entry.actor == "pool_orchestrator"
+        assert entry.details["previous_priority"] == "low"
+        assert entry.details["new_priority"] == "critical"
+        assert entry.details["reason"] == "SLA breach"
+
+    def test_log_work_item_escalated_priority_change_in_details(self) -> None:
+        entry = log_work_item_escalated(
+            customer_id="cust-1",
+            work_item_id="wi-3",
+            previous_priority="medium",
+            new_priority="high",
+        )
+        assert "previous_priority" in entry.details
+        assert "new_priority" in entry.details
+        assert entry.details["previous_priority"] == "medium"
+        assert entry.details["new_priority"] == "high"
+
+    def test_log_pool_registered(self) -> None:
+        entry = log_pool_registered(
+            customer_id="cust-1",
+            pool_id="pool-1",
+            pool_name="Alpha Pool",
+            details={"capacity": 10},
+        )
+        assert entry.entry_type == AuditEntryType.POOL_REGISTERED
+        assert entry.customer_id == "cust-1"
+        assert entry.resource_id == "pool-1"
+        assert entry.resource_type == "pool"
+        assert entry.actor == "system"
+        assert entry.details["pool_name"] == "Alpha Pool"
+        assert entry.details["capacity"] == 10
+
+    def test_log_pool_registered_includes_pool_name(self) -> None:
+        entry = log_pool_registered(
+            customer_id="cust-1",
+            pool_id="pool-2",
+            pool_name="Beta Pool",
+        )
+        assert "pool_name" in entry.details
+        assert entry.details["pool_name"] == "Beta Pool"
+
+    def test_log_pool_deregistered(self) -> None:
+        entry = log_pool_deregistered(
+            customer_id="cust-1",
+            pool_id="pool-1",
+            pool_name="Alpha Pool",
+            details={"reason": "maintenance"},
+        )
+        assert entry.entry_type == AuditEntryType.POOL_DEREGISTERED
+        assert entry.customer_id == "cust-1"
+        assert entry.resource_id == "pool-1"
+        assert entry.resource_type == "pool"
+        assert entry.actor == "system"
+        assert entry.details["pool_name"] == "Alpha Pool"
+        assert entry.details["reason"] == "maintenance"
+
 
 # ---------------------------------------------------------------------------
 # Integration: full flow through logger with chain verification
@@ -553,3 +667,47 @@ class TestAuditIntegration:
         # Tamper with the first entry
         chain[0].actor = "evil-actor"
         assert verify_chain(chain) is False
+
+    async def test_pool_operations_chain_verification(self) -> None:
+        logger = InMemoryAuditLogger()
+
+        e1 = log_pool_registered(
+            customer_id="cust-1",
+            pool_id="pool-1",
+            pool_name="Alpha Pool",
+        )
+        await logger.append(e1)
+
+        e2 = log_work_item_routed(
+            customer_id="cust-1",
+            work_item_id="wi-1",
+            correlation_id="corr-pool-1",
+            consumer_pool="pool-1",
+        )
+        await logger.append(e2)
+
+        e3 = log_work_item_escalated(
+            customer_id="cust-1",
+            work_item_id="wi-1",
+            correlation_id="corr-pool-1",
+            previous_priority="low",
+            new_priority="high",
+        )
+        await logger.append(e3)
+
+        e4 = log_work_item_completed(
+            customer_id="cust-1",
+            work_item_id="wi-1",
+            correlation_id="corr-pool-1",
+        )
+        await logger.append(e4)
+
+        e5 = log_pool_deregistered(
+            customer_id="cust-1",
+            pool_id="pool-1",
+            pool_name="Alpha Pool",
+        )
+        await logger.append(e5)
+
+        # The full chain across all entries should verify
+        assert verify_chain(logger._entries) is True
