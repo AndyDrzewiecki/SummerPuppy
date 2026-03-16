@@ -127,3 +127,64 @@ class ActionOutcome(BaseModel):
     error_detail: str | None = None
     rollback_triggered: bool = False
     metrics: dict[str, Any] = Field(default_factory=dict)
+
+
+class ExecutorStatus(StrEnum):
+    PENDING = "PENDING"
+    DRY_RUN_PASSED = "DRY_RUN_PASSED"
+    DRY_RUN_FAILED = "DRY_RUN_FAILED"
+    EXECUTING = "EXECUTING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    ROLLED_BACK = "ROLLED_BACK"
+
+
+class DryRunResult(BaseModel):
+    action_class: ActionClass
+    customer_id: str
+    is_safe: bool
+    reason: str
+    validated_parameters: dict[str, Any] = Field(default_factory=dict)
+    checked_utc: datetime = Field(default_factory=lambda: datetime.now(tz=UTC))
+
+
+class ExecutionResult(BaseModel):
+    execution_id: str = Field(default_factory=lambda: str(uuid4()))
+    action_class: ActionClass
+    customer_id: str
+    status: ExecutorStatus
+    parameters_applied: dict[str, Any] = Field(default_factory=dict)
+    rollback_parameters: dict[str, Any] = Field(default_factory=dict)
+    started_utc: datetime = Field(default_factory=lambda: datetime.now(tz=UTC))
+    completed_utc: datetime | None = None
+    error_detail: str | None = None
+
+
+class RollbackRecord(BaseModel):
+    rollback_id: str = Field(default_factory=lambda: str(uuid4()))
+    execution_id: str
+    customer_id: str
+    action_class: ActionClass
+    reason: str
+    rollback_utc: datetime = Field(default_factory=lambda: datetime.now(tz=UTC))
+    success: bool
+    error_detail: str | None = None
+
+
+class PredictiveAlertType(StrEnum):
+    UNPATCHED_ASSET = "UNPATCHED_ASSET"
+    PRE_BREACH_PATTERN = "PRE_BREACH_PATTERN"
+    STALE_DETECTION_RULE = "STALE_DETECTION_RULE"
+
+
+class PredictiveAlert(BaseModel):
+    alert_id: str = Field(default_factory=lambda: str(uuid4()))
+    customer_id: str
+    alert_type: PredictiveAlertType
+    affected_assets: list[str] = Field(default_factory=list)
+    cve_ids: list[str] = Field(default_factory=list)
+    risk_score: float = Field(ge=0, le=1)
+    reasoning: str
+    recommended_action_class: ActionClass | None = None
+    generated_utc: datetime = Field(default_factory=lambda: datetime.now(tz=UTC))
+    correlation_id: str | None = None

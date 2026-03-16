@@ -238,3 +238,104 @@ def log_pool_deregistered(
         resource_type="pool",
         details=merged,
     )
+
+
+def log_executor_completed(
+    customer_id: str,
+    execution_id: str | None = None,
+    action_class: str | None = None,
+    correlation_id: str | None = None,
+    details: dict[str, Any] | None = None,
+) -> AuditEntry:
+    merged = {"action_class": action_class or "", **(details or {})}
+    return AuditEntry(
+        customer_id=customer_id,
+        entry_type=AuditEntryType.EXECUTOR_COMPLETED,
+        actor="executor",
+        correlation_id=correlation_id,
+        resource_id=execution_id,
+        resource_type="execution",
+        details=merged,
+    )
+
+
+def log_executor_failed(
+    customer_id: str,
+    execution_id: str | None = None,
+    action_class: str | None = None,
+    correlation_id: str | None = None,
+    error_detail: str | None = None,
+    details: dict[str, Any] | None = None,
+) -> AuditEntry:
+    merged = {
+        "action_class": action_class or "",
+        "error_detail": error_detail or "",
+        **(details or {}),
+    }
+    return AuditEntry(
+        customer_id=customer_id,
+        entry_type=AuditEntryType.EXECUTOR_FAILED,
+        actor="executor",
+        correlation_id=correlation_id,
+        resource_id=execution_id,
+        resource_type="execution",
+        details=merged,
+    )
+
+
+def log_executor_rolled_back(
+    customer_id: str,
+    rollback_id: str | None = None,
+    execution_id: str | None = None,
+    correlation_id: str | None = None,
+    details: dict[str, Any] | None = None,
+) -> AuditEntry:
+    merged = {"execution_id": execution_id or "", **(details or {})}
+    return AuditEntry(
+        customer_id=customer_id,
+        entry_type=AuditEntryType.EXECUTOR_ROLLED_BACK,
+        actor="executor",
+        correlation_id=correlation_id,
+        resource_id=rollback_id,
+        resource_type="rollback",
+        details=merged,
+    )
+
+
+def log_predictive_alert(
+    customer_id: str,
+    alert_id: str | None = None,
+    alert_type: str | None = None,
+    risk_score: float | None = None,
+    correlation_id: str | None = None,
+    details: dict[str, Any] | None = None,
+) -> AuditEntry:
+    merged = {"alert_type": alert_type or "", "risk_score": risk_score, **(details or {})}
+    return AuditEntry(
+        customer_id=customer_id,
+        entry_type=AuditEntryType.PREDICTIVE_ALERT_GENERATED,
+        actor="predictive_monitor",
+        correlation_id=correlation_id,
+        resource_id=alert_id,
+        resource_type="predictive_alert",
+        details=merged,
+    )
+
+
+def log_known_pattern_auto_resolved(
+    customer_id: str,
+    event_id: str | None = None,
+    pattern_ref_id: str | None = None,
+    correlation_id: str | None = None,
+    details: dict[str, Any] | None = None,
+) -> AuditEntry:
+    merged = {"pattern_ref_id": pattern_ref_id or "", **(details or {})}
+    return AuditEntry(
+        customer_id=customer_id,
+        entry_type=AuditEntryType.KNOWN_PATTERN_AUTO_RESOLVED,
+        actor="pattern_resolver",
+        correlation_id=correlation_id,
+        resource_id=event_id,
+        resource_type="security_event",
+        details=merged,
+    )

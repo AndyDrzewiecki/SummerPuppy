@@ -6,7 +6,11 @@ import logging
 from datetime import UTC, datetime
 from typing import Any, Protocol, runtime_checkable
 
-from summer_puppy.audit.logger import AuditLogger, log_event_received  # noqa: TC001
+from summer_puppy.audit.logger import (  # noqa: TC001
+    AuditLogger,
+    log_event_received,
+    log_predictive_alert,
+)
 from summer_puppy.audit.models import AuditEntry, AuditEntryType
 from summer_puppy.channel.bus import EventBus  # noqa: TC001
 from summer_puppy.channel.models import Topic
@@ -16,6 +20,8 @@ from summer_puppy.events.models import (
     AnalysisResult,
     ApprovalMethod,
     EventStatus,
+    PredictiveAlert,
+    PredictiveAlertType,
     QAStatus,
     Recommendation,
     Severity,
@@ -516,4 +522,64 @@ class CloseHandler:
     async def handle(self, ctx: PipelineContext) -> PipelineContext:
         ctx.status = PipelineStatus.COMPLETED
         ctx.event.status = EventStatus.CLOSED
+        return ctx
+
+
+class PredictiveMonitorHandler:
+    """Queries knowledge store for unpatched assets and generates PredictiveAlerts.
+
+    Called on schedule; does not advance PipelineStage.
+    """
+
+    def __init__(
+        self,
+        audit_logger: AuditLogger,
+        knowledge_store: KnowledgeStore,
+        patch_age_threshold_days: int = 30,
+        risk_score_threshold: float = 0.6,
+    ) -> None:
+        self._audit_logger = audit_logger
+        self._knowledge_store = knowledge_store
+        self._patch_age_threshold_days = patch_age_threshold_days
+        self._risk_score_threshold = risk_score_threshold
+
+    async def handle(self, ctx: PipelineContext) -> PipelineContext:
+        alerts: list[dict[str, Any]] = []
+
+        for asset_id in ctx.event.affected_assets:
+            asset_context = await self._knowledge_store.get_asset_context(asset_id)
+            if asset_context is None:
+                continue
+
+            # Check for vulnerabilities as indicator of unpatched state
+            if asset_context.vulnerabilities:
+                risk_score = min(1.0, len(asset_context.vulnerabilities) * 0.3)
+                if risk_score >= self._risk_score_threshold:
+                    alert = PredictiveAlert(
+                        customer_id=ctx.customer_id,
+                        alert_type=PredictiveAlertType.UNPATCHED_ASSET,
+                        affected_assets=[asset_id],
+                        cve_ids=[v.cve_id for v in asset_context.vulnerabilities],
+                        risk_score=risk_score,
+                        reasoning=(
+                            f"Asset {asset_id} has "
+                            f"{len(asset_context.vulnerabilities)} unpatched vulnerabilities"
+                        ),
+                        recommended_action_class=ActionClass.PATCH_DEPLOYMENT,
+                        correlation_id=ctx.correlation_id,
+                    )
+                    alerts.append(alert.model_dump())
+
+                    await self._audit_logger.append(
+                        log_predictive_alert(
+                            customer_id=ctx.customer_id,
+                            alert_id=alert.alert_id,
+                            alert_type=alert.alert_type.value,
+                            risk_score=alert.risk_score,
+                            correlation_id=ctx.correlation_id,
+                        )
+                    )
+
+        ctx.metadata["predictive_alerts"] = alerts
+        # Do NOT change ctx.current_stage — this is a background handler
         return ctx

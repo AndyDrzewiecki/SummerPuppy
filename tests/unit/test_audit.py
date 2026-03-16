@@ -10,9 +10,14 @@ from summer_puppy.audit.logger import (
     log_action_outcome,
     log_approval_decision,
     log_event_received,
+    log_executor_completed,
+    log_executor_failed,
+    log_executor_rolled_back,
+    log_known_pattern_auto_resolved,
     log_phase_transition,
     log_pool_deregistered,
     log_pool_registered,
+    log_predictive_alert,
     log_recommendation,
     log_work_item_completed,
     log_work_item_escalated,
@@ -42,7 +47,7 @@ class TestAuditEntryType:
         assert AuditEntryType.POLICY_CHANGED == "POLICY_CHANGED"
 
     def test_member_count(self) -> None:
-        assert len(AuditEntryType) == 18
+        assert len(AuditEntryType) == 24
 
 
 # ---------------------------------------------------------------------------
@@ -591,6 +596,91 @@ class TestConvenienceFactories:
         assert entry.actor == "system"
         assert entry.details["pool_name"] == "Alpha Pool"
         assert entry.details["reason"] == "maintenance"
+
+    def test_log_executor_completed(self) -> None:
+        entry = log_executor_completed(
+            customer_id="cust-1",
+            execution_id="exec-1",
+            action_class="block_ip",
+            correlation_id="corr-1",
+            details={"duration_ms": 100},
+        )
+        assert entry.entry_type == AuditEntryType.EXECUTOR_COMPLETED
+        assert entry.customer_id == "cust-1"
+        assert entry.resource_id == "exec-1"
+        assert entry.resource_type == "execution"
+        assert entry.actor == "executor"
+        assert entry.correlation_id == "corr-1"
+        assert entry.details["action_class"] == "block_ip"
+        assert entry.details["duration_ms"] == 100
+
+    def test_log_executor_failed(self) -> None:
+        entry = log_executor_failed(
+            customer_id="cust-1",
+            execution_id="exec-2",
+            action_class="disable_account",
+            correlation_id="corr-2",
+            error_detail="Connection timeout",
+            details={"retry_count": 3},
+        )
+        assert entry.entry_type == AuditEntryType.EXECUTOR_FAILED
+        assert entry.customer_id == "cust-1"
+        assert entry.resource_id == "exec-2"
+        assert entry.resource_type == "execution"
+        assert entry.actor == "executor"
+        assert entry.details["action_class"] == "disable_account"
+        assert entry.details["error_detail"] == "Connection timeout"
+        assert entry.details["retry_count"] == 3
+
+    def test_log_executor_rolled_back(self) -> None:
+        entry = log_executor_rolled_back(
+            customer_id="cust-1",
+            rollback_id="rb-1",
+            execution_id="exec-3",
+            correlation_id="corr-3",
+            details={"reason": "error detected"},
+        )
+        assert entry.entry_type == AuditEntryType.EXECUTOR_ROLLED_BACK
+        assert entry.customer_id == "cust-1"
+        assert entry.resource_id == "rb-1"
+        assert entry.resource_type == "rollback"
+        assert entry.actor == "executor"
+        assert entry.details["execution_id"] == "exec-3"
+        assert entry.details["reason"] == "error detected"
+
+    def test_log_predictive_alert(self) -> None:
+        entry = log_predictive_alert(
+            customer_id="cust-1",
+            alert_id="alert-1",
+            alert_type="UNPATCHED_ASSET",
+            risk_score=0.85,
+            correlation_id="corr-4",
+            details={"asset_count": 5},
+        )
+        assert entry.entry_type == AuditEntryType.PREDICTIVE_ALERT_GENERATED
+        assert entry.customer_id == "cust-1"
+        assert entry.resource_id == "alert-1"
+        assert entry.resource_type == "predictive_alert"
+        assert entry.actor == "predictive_monitor"
+        assert entry.details["alert_type"] == "UNPATCHED_ASSET"
+        assert entry.details["risk_score"] == 0.85
+        assert entry.details["asset_count"] == 5
+
+    def test_log_known_pattern_auto_resolved(self) -> None:
+        entry = log_known_pattern_auto_resolved(
+            customer_id="cust-1",
+            event_id="evt-1",
+            pattern_ref_id="pattern-42",
+            correlation_id="corr-5",
+            details={"resolution": "auto-patched"},
+        )
+        assert entry.entry_type == AuditEntryType.KNOWN_PATTERN_AUTO_RESOLVED
+        assert entry.customer_id == "cust-1"
+        assert entry.resource_id == "evt-1"
+        assert entry.resource_type == "security_event"
+        assert entry.actor == "pattern_resolver"
+        assert entry.details["pattern_ref_id"] == "pattern-42"
+        assert entry.details["resolution"] == "auto-patched"
 
 
 # ---------------------------------------------------------------------------

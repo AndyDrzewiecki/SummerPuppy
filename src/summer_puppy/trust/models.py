@@ -23,6 +23,9 @@ class ActionClass(StrEnum):
     DETECTION_RULE_UPDATE = "detection_rule_update"
     COMPENSATING_CONTROL = "compensating_control"
     ROLLBACK = "rollback"
+    BLOCK_IP = "block_ip"
+    DISABLE_ACCOUNT = "disable_account"
+    UPDATE_FIREWALL_RULE = "update_firewall_rule"
 
 
 class PolicyStatus(StrEnum):

@@ -10,10 +10,16 @@ from summer_puppy.events.models import (
     ActionOutcome,
     ActionRequest,
     ApprovalMethod,
+    DryRunResult,
     EventSource,
     EventStatus,
+    ExecutionResult,
+    ExecutorStatus,
+    PredictiveAlert,
+    PredictiveAlertType,
     QAStatus,
     Recommendation,
+    RollbackRecord,
     SecurityEvent,
     Severity,
 )
@@ -570,3 +576,268 @@ class TestActionOutcome:
         assert restored.outcome_id == outcome.outcome_id
         assert restored.success == outcome.success
         assert restored.result_summary == outcome.result_summary
+
+
+# ---------------------------------------------------------------------------
+# ExecutorStatus tests
+# ---------------------------------------------------------------------------
+
+
+class TestExecutorStatus:
+    def test_enum_values(self) -> None:
+        assert ExecutorStatus.PENDING == "PENDING"
+        assert ExecutorStatus.DRY_RUN_PASSED == "DRY_RUN_PASSED"
+        assert ExecutorStatus.DRY_RUN_FAILED == "DRY_RUN_FAILED"
+        assert ExecutorStatus.EXECUTING == "EXECUTING"
+        assert ExecutorStatus.COMPLETED == "COMPLETED"
+        assert ExecutorStatus.FAILED == "FAILED"
+        assert ExecutorStatus.ROLLED_BACK == "ROLLED_BACK"
+
+    def test_member_count(self) -> None:
+        assert len(ExecutorStatus) == 7
+
+
+# ---------------------------------------------------------------------------
+# PredictiveAlertType tests
+# ---------------------------------------------------------------------------
+
+
+class TestPredictiveAlertType:
+    def test_enum_values(self) -> None:
+        assert PredictiveAlertType.UNPATCHED_ASSET == "UNPATCHED_ASSET"
+        assert PredictiveAlertType.PRE_BREACH_PATTERN == "PRE_BREACH_PATTERN"
+        assert PredictiveAlertType.STALE_DETECTION_RULE == "STALE_DETECTION_RULE"
+
+    def test_member_count(self) -> None:
+        assert len(PredictiveAlertType) == 3
+
+
+# ---------------------------------------------------------------------------
+# DryRunResult tests
+# ---------------------------------------------------------------------------
+
+
+class TestDryRunResult:
+    def test_minimal_creation(self) -> None:
+        result = DryRunResult(
+            action_class=ActionClass.BLOCK_IP,
+            customer_id="cust-1",
+            is_safe=True,
+            reason="All preconditions met",
+        )
+        assert result.action_class == ActionClass.BLOCK_IP
+        assert result.customer_id == "cust-1"
+        assert result.is_safe is True
+        assert result.reason == "All preconditions met"
+        assert result.validated_parameters == {}
+        assert isinstance(result.checked_utc, datetime)
+
+    def test_all_fields(self) -> None:
+        now = datetime(2026, 3, 16, 12, 0, 0, tzinfo=UTC)
+        result = DryRunResult(
+            action_class=ActionClass.DISABLE_ACCOUNT,
+            customer_id="cust-2",
+            is_safe=False,
+            reason="Missing account_id",
+            validated_parameters={"account_id": "acc-1"},
+            checked_utc=now,
+        )
+        assert result.action_class == ActionClass.DISABLE_ACCOUNT
+        assert result.customer_id == "cust-2"
+        assert result.is_safe is False
+        assert result.validated_parameters == {"account_id": "acc-1"}
+        assert result.checked_utc == now
+
+    def test_serialization_round_trip(self) -> None:
+        result = DryRunResult(
+            action_class=ActionClass.UPDATE_FIREWALL_RULE,
+            customer_id="cust-1",
+            is_safe=True,
+            reason="ok",
+        )
+        data = result.model_dump()
+        restored = DryRunResult.model_validate(data)
+        assert restored.action_class == result.action_class
+        assert restored.is_safe == result.is_safe
+
+
+# ---------------------------------------------------------------------------
+# ExecutionResult tests
+# ---------------------------------------------------------------------------
+
+
+class TestExecutionResult:
+    def test_minimal_creation(self) -> None:
+        result = ExecutionResult(
+            action_class=ActionClass.BLOCK_IP,
+            customer_id="cust-1",
+            status=ExecutorStatus.COMPLETED,
+        )
+        assert result.action_class == ActionClass.BLOCK_IP
+        assert result.customer_id == "cust-1"
+        assert result.status == ExecutorStatus.COMPLETED
+        assert result.execution_id  # auto-generated uuid
+        assert result.parameters_applied == {}
+        assert result.rollback_parameters == {}
+        assert isinstance(result.started_utc, datetime)
+        assert result.completed_utc is None
+        assert result.error_detail is None
+
+    def test_unique_ids(self) -> None:
+        r1 = ExecutionResult(
+            action_class=ActionClass.BLOCK_IP,
+            customer_id="cust-1",
+            status=ExecutorStatus.COMPLETED,
+        )
+        r2 = ExecutionResult(
+            action_class=ActionClass.BLOCK_IP,
+            customer_id="cust-1",
+            status=ExecutorStatus.COMPLETED,
+        )
+        assert r1.execution_id != r2.execution_id
+
+    def test_serialization_round_trip(self) -> None:
+        result = ExecutionResult(
+            action_class=ActionClass.DISABLE_ACCOUNT,
+            customer_id="cust-1",
+            status=ExecutorStatus.FAILED,
+            error_detail="Something went wrong",
+            parameters_applied={"account_id": "acc-1"},
+        )
+        data = result.model_dump()
+        restored = ExecutionResult.model_validate(data)
+        assert restored.execution_id == result.execution_id
+        assert restored.status == result.status
+        assert restored.error_detail == result.error_detail
+
+
+# ---------------------------------------------------------------------------
+# RollbackRecord tests
+# ---------------------------------------------------------------------------
+
+
+class TestRollbackRecord:
+    def test_minimal_creation(self) -> None:
+        record = RollbackRecord(
+            execution_id="exec-1",
+            customer_id="cust-1",
+            action_class=ActionClass.BLOCK_IP,
+            reason="Rollback requested",
+            success=True,
+        )
+        assert record.execution_id == "exec-1"
+        assert record.customer_id == "cust-1"
+        assert record.action_class == ActionClass.BLOCK_IP
+        assert record.reason == "Rollback requested"
+        assert record.success is True
+        assert record.rollback_id  # auto-generated uuid
+        assert isinstance(record.rollback_utc, datetime)
+        assert record.error_detail is None
+
+    def test_all_fields(self) -> None:
+        now = datetime(2026, 3, 16, 12, 0, 0, tzinfo=UTC)
+        record = RollbackRecord(
+            rollback_id="rb-custom",
+            execution_id="exec-2",
+            customer_id="cust-2",
+            action_class=ActionClass.DISABLE_ACCOUNT,
+            reason="Error detected",
+            rollback_utc=now,
+            success=False,
+            error_detail="Rollback failed: timeout",
+        )
+        assert record.rollback_id == "rb-custom"
+        assert record.rollback_utc == now
+        assert record.success is False
+        assert record.error_detail == "Rollback failed: timeout"
+
+    def test_serialization_round_trip(self) -> None:
+        record = RollbackRecord(
+            execution_id="exec-1",
+            customer_id="cust-1",
+            action_class=ActionClass.UPDATE_FIREWALL_RULE,
+            reason="test",
+            success=True,
+        )
+        data = record.model_dump()
+        restored = RollbackRecord.model_validate(data)
+        assert restored.rollback_id == record.rollback_id
+        assert restored.success == record.success
+
+
+# ---------------------------------------------------------------------------
+# PredictiveAlert tests
+# ---------------------------------------------------------------------------
+
+
+class TestPredictiveAlert:
+    def test_minimal_creation(self) -> None:
+        alert = PredictiveAlert(
+            customer_id="cust-1",
+            alert_type=PredictiveAlertType.UNPATCHED_ASSET,
+            risk_score=0.8,
+            reasoning="High risk detected",
+        )
+        assert alert.customer_id == "cust-1"
+        assert alert.alert_type == PredictiveAlertType.UNPATCHED_ASSET
+        assert alert.risk_score == 0.8
+        assert alert.reasoning == "High risk detected"
+        assert alert.alert_id  # auto-generated uuid
+        assert alert.affected_assets == []
+        assert alert.cve_ids == []
+        assert alert.recommended_action_class is None
+        assert isinstance(alert.generated_utc, datetime)
+        assert alert.correlation_id is None
+
+    def test_risk_score_validation_too_high(self) -> None:
+        with pytest.raises(ValidationError):
+            PredictiveAlert(
+                customer_id="cust-1",
+                alert_type=PredictiveAlertType.UNPATCHED_ASSET,
+                risk_score=1.1,
+                reasoning="r",
+            )
+
+    def test_risk_score_validation_too_low(self) -> None:
+        with pytest.raises(ValidationError):
+            PredictiveAlert(
+                customer_id="cust-1",
+                alert_type=PredictiveAlertType.UNPATCHED_ASSET,
+                risk_score=-0.1,
+                reasoning="r",
+            )
+
+    def test_risk_score_boundary_zero(self) -> None:
+        alert = PredictiveAlert(
+            customer_id="cust-1",
+            alert_type=PredictiveAlertType.PRE_BREACH_PATTERN,
+            risk_score=0.0,
+            reasoning="r",
+        )
+        assert alert.risk_score == 0.0
+
+    def test_risk_score_boundary_one(self) -> None:
+        alert = PredictiveAlert(
+            customer_id="cust-1",
+            alert_type=PredictiveAlertType.STALE_DETECTION_RULE,
+            risk_score=1.0,
+            reasoning="r",
+        )
+        assert alert.risk_score == 1.0
+
+    def test_serialization_round_trip(self) -> None:
+        alert = PredictiveAlert(
+            customer_id="cust-1",
+            alert_type=PredictiveAlertType.UNPATCHED_ASSET,
+            affected_assets=["server-01"],
+            cve_ids=["CVE-2026-001"],
+            risk_score=0.9,
+            reasoning="Unpatched vulnerability",
+            recommended_action_class=ActionClass.PATCH_DEPLOYMENT,
+            correlation_id="corr-1",
+        )
+        data = alert.model_dump()
+        restored = PredictiveAlert.model_validate(data)
+        assert restored.alert_id == alert.alert_id
+        assert restored.risk_score == alert.risk_score
+        assert restored.recommended_action_class == alert.recommended_action_class

@@ -36,9 +36,12 @@ class TestActionClass:
         assert ActionClass.DETECTION_RULE_UPDATE == "detection_rule_update"
         assert ActionClass.COMPENSATING_CONTROL == "compensating_control"
         assert ActionClass.ROLLBACK == "rollback"
+        assert ActionClass.BLOCK_IP == "block_ip"
+        assert ActionClass.DISABLE_ACCOUNT == "disable_account"
+        assert ActionClass.UPDATE_FIREWALL_RULE == "update_firewall_rule"
 
     def test_all_members(self):
-        assert len(ActionClass) == 8
+        assert len(ActionClass) == 11
 
 
 class TestPolicyStatus:
