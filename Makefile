@@ -1,4 +1,4 @@
-.PHONY: lint typecheck test test-integration install
+.PHONY: lint typecheck test test-integration install check coverage format test-all
 
 install:
 	pip install -e ".[dev]"
@@ -18,6 +18,11 @@ test:
 	pytest tests/unit/ -v
 
 test-integration:
-	pytest tests/integration/ -v
+	pytest tests/integration/ -v || test $$? -eq 5
 
 test-all: lint typecheck test test-integration
+
+check: lint typecheck test
+
+coverage:
+	pytest tests/unit/ -v --cov=src/summer_puppy --cov-report=term-missing

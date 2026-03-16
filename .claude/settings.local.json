@@ -1,7 +1,32 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git ls-tree:*)"
+      "Bash(git ls-tree:*)",
+      "Bash(find:*)",
+      "Bash(make install:*)",
+      "Bash(python3:*)",
+      "Bash(.venv/bin/pip install:*)",
+      "Bash(rm:*)",
+      "Bash(/tmp/sp-venv/bin/pip install:*)",
+      "Read(//tmp/**)",
+      "Bash(rm -rf sp-venv sp-project)",
+      "Bash(mkdir sp-project:*)",
+      "Bash(cp -r /mnt/c/AI-Lab/SummerPuppy/* sp-project/)",
+      "Bash(cp -r /mnt/c/AI-Lab/SummerPuppy/.* sp-project/)",
+      "Bash(sp-venv/bin/pip install:*)",
+      "Bash(/tmp/sp-venv/bin/python -c \"import hatchling; print\\(hatchling.__file__\\)\" 2>&1 && /tmp/sp-venv/bin/python -c \"from hatchling.build import *; print\\('ok'\\)\" 2>&1)",
+      "Bash(/tmp/sp-venv/bin/python -c \"from hatchling.backends import *\" 2>&1)",
+      "Bash(cd:*)",
+      "Bash(cp:*)",
+      "Bash(python:*)",
+      "Bash(make check:*)",
+      "Bash(ruff check:*)",
+      "Bash(mypy:*)",
+      "Bash(ruff format:*)",
+      "Bash(make lint:*)",
+      "Bash(make typecheck:*)",
+      "Bash(make test:*)",
+      "Bash(make coverage:*)"
     ]
   }
 }

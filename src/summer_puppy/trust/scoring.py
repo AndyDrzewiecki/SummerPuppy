@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from typing import TYPE_CHECKING, Any
 
 from summer_puppy.trust.models import (
     ApprovalCheckResult,
@@ -10,8 +10,11 @@ from summer_puppy.trust.models import (
     TrustProfile,
 )
 
+if TYPE_CHECKING:
+    from datetime import datetime
 
-def calculate_trust_score(outcome_history: list[dict]) -> float:
+
+def calculate_trust_score(outcome_history: list[dict[str, Any]]) -> float:
     if not outcome_history:
         return 0.0
     positive = sum(1 for o in outcome_history if o.get("success", False))
@@ -31,7 +34,7 @@ def evaluate_phase_transition(profile: TrustProfile, score: float) -> TrustPhase
 
 
 def check_auto_approval(
-    recommendation: dict,
+    recommendation: dict[str, Any],
     policies: list[AutoApprovalPolicy],
     current_utc: datetime,
 ) -> ApprovalCheckResult:
@@ -66,9 +69,10 @@ def check_auto_approval(
             current_time = current_utc.time()
             if not (cond.time_window_start <= current_time <= cond.time_window_end):
                 continue
-        if cond.excluded_asset_classes:
-            if any(ac in cond.excluded_asset_classes for ac in rec_assets):
-                continue
+        if cond.excluded_asset_classes and any(
+            ac in cond.excluded_asset_classes for ac in rec_assets
+        ):
+            continue
         return ApprovalCheckResult(
             policy_matched=True,
             policy_id=policy.policy_id,
