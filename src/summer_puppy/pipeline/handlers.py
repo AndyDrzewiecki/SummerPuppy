@@ -20,16 +20,20 @@ from summer_puppy.events.models import (
     AnalysisResult,
     ApprovalMethod,
     EventStatus,
+    ExecutorStatus,
     PredictiveAlert,
     PredictiveAlertType,
     QAStatus,
     Recommendation,
     Severity,
 )
+from summer_puppy.execution.models import ExecutionPlan
+from summer_puppy.execution.sandbox import ExecutionSandbox  # noqa: TC001
 from summer_puppy.llm.client import LLMClient  # noqa: TC001
 from summer_puppy.llm.prompts import ANALYZE_EVENT, GENERATE_RECOMMENDATION
 from summer_puppy.memory.store import KnowledgeStore  # noqa: TC001
 from summer_puppy.pipeline.models import PipelineContext, PipelineStage, PipelineStatus
+from summer_puppy.tenants.models import TenantProfile
 from summer_puppy.trust.models import ActionClass, TrustPhase
 from summer_puppy.trust.scoring import (
     calculate_trust_score,
@@ -582,4 +586,85 @@ class PredictiveMonitorHandler:
 
         ctx.metadata["predictive_alerts"] = alerts
         # Do NOT change ctx.current_stage — this is a background handler
+        return ctx
+
+
+class SandboxExecuteHandler:
+    """Executes actions through the bounded execution sandbox."""
+
+    def __init__(
+        self,
+        execution_sandbox: ExecutionSandbox,
+        audit_logger: AuditLogger,
+        event_bus: EventBus,
+    ) -> None:
+        self._sandbox = execution_sandbox
+        self._audit_logger = audit_logger
+        self._event_bus = event_bus
+
+    async def handle(self, ctx: PipelineContext) -> PipelineContext:
+        assert ctx.action_request is not None, "ActionRequest required at EXECUTE stage"
+
+        # Build tenant profile from metadata or create a permissive default
+        tenant_data = ctx.metadata.get("tenant_profile")
+        if tenant_data and isinstance(tenant_data, dict):
+            tenant = TenantProfile.model_validate(tenant_data)
+        else:
+            # Default: permissive tenant (allows all)
+            tenant = TenantProfile(customer_id=ctx.customer_id)
+
+        # Create execution plan from action request
+        plan = ExecutionPlan(
+            customer_id=ctx.customer_id,
+            correlation_id=ctx.correlation_id,
+            action_class=ctx.action_request.action_class,
+            parameters=ctx.action_request.parameters,
+        )
+
+        # Run through sandbox
+        completed_plan = await self._sandbox.run(
+            plan=plan,
+            tenant=tenant,
+            trust_phase=ctx.trust_profile.trust_phase,
+        )
+
+        # Translate execution result to ActionOutcome
+        exec_result = completed_plan.execution_result
+        if exec_result is not None:
+            success = exec_result.status == ExecutorStatus.COMPLETED
+            outcome = ActionOutcome(
+                request_id=ctx.action_request.request_id,
+                customer_id=ctx.customer_id,
+                success=success,
+                result_summary=f"Sandbox execution: {exec_result.status.value}",
+                error_detail=exec_result.error_detail,
+                rollback_triggered=completed_plan.rollback_record is not None,
+                completed_utc=completed_plan.completed_utc,
+            )
+        else:
+            # No execution happened (dry_run or gate failed)
+            reason = ""
+            if completed_plan.dry_run_result and not completed_plan.dry_run_result.is_safe:
+                reason = f"Dry run failed: {completed_plan.dry_run_result.reason}"
+            elif not completed_plan.policy_gate_passed:
+                reason = f"Policy gate denied: {completed_plan.policy_gate_reason}"
+            outcome = ActionOutcome(
+                request_id=ctx.action_request.request_id,
+                customer_id=ctx.customer_id,
+                success=False,
+                result_summary=reason or "Execution did not proceed",
+                completed_utc=completed_plan.completed_utc,
+            )
+
+        ctx.outcome = outcome
+        ctx.metadata["execution_plan"] = completed_plan.model_dump()
+
+        await self._event_bus.publish(
+            topic=Topic.ACTION_OUTCOMES,
+            message=outcome,
+            customer_id=ctx.customer_id,
+            correlation_id=ctx.correlation_id,
+        )
+
+        ctx.current_stage = PipelineStage.VERIFY
         return ctx

@@ -7,6 +7,7 @@ from uuid import uuid4
 from summer_puppy.audit.logger import AuditLogger  # noqa: TC001
 from summer_puppy.channel.bus import EventBus  # noqa: TC001
 from summer_puppy.events.models import SecurityEvent  # noqa: TC001
+from summer_puppy.execution.sandbox import ExecutionSandbox  # noqa: TC001
 from summer_puppy.llm.client import LLMClient  # noqa: TC001
 from summer_puppy.logging.config import correlation_context, get_logger
 from summer_puppy.memory.store import KnowledgeStore  # noqa: TC001
@@ -18,6 +19,7 @@ from summer_puppy.pipeline.handlers import (
     PassthroughAnalyzeHandler,
     PassthroughRecommendHandler,
     PassthroughTriageHandler,
+    SandboxExecuteHandler,
     StepHandler,
     StubExecuteHandler,
     TriageHandler,
@@ -110,6 +112,7 @@ class Orchestrator:
         event_bus: EventBus,
         llm_client: LLMClient | None = None,
         knowledge_store: KnowledgeStore | None = None,
+        execution_sandbox: ExecutionSandbox | None = None,
     ) -> Orchestrator:
         """Create an orchestrator with all default handlers registered."""
         orch = cls(audit_logger=audit_logger, event_bus=event_bus)
@@ -163,10 +166,20 @@ class Orchestrator:
             PipelineStage.APPROVE,
             TrustApprovalHandler(audit_logger=audit_logger, event_bus=event_bus),
         )
-        orch.register_handler(
-            PipelineStage.EXECUTE,
-            StubExecuteHandler(audit_logger=audit_logger, event_bus=event_bus),
-        )
+        if execution_sandbox is not None:
+            orch.register_handler(
+                PipelineStage.EXECUTE,
+                SandboxExecuteHandler(
+                    execution_sandbox=execution_sandbox,
+                    audit_logger=audit_logger,
+                    event_bus=event_bus,
+                ),
+            )
+        else:
+            orch.register_handler(
+                PipelineStage.EXECUTE,
+                StubExecuteHandler(audit_logger=audit_logger, event_bus=event_bus),
+            )
         orch.register_handler(
             PipelineStage.VERIFY,
             VerifyHandler(audit_logger=audit_logger, event_bus=event_bus),

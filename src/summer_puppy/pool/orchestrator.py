@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from summer_puppy.audit.logger import (
     AuditLogger,  # noqa: TC001
@@ -25,6 +26,9 @@ from summer_puppy.work.models import (
 )
 from summer_puppy.work.store import WorkItemStore  # noqa: TC001
 
+if TYPE_CHECKING:
+    from summer_puppy.skills.trainer import Trainer
+
 logger = get_logger("pool_orchestrator")
 
 _PRIORITY_ESCALATION: dict[WorkItemPriority, WorkItemPriority] = {
@@ -45,12 +49,14 @@ class PoolOrchestrator:
         work_item_store: WorkItemStore,
         audit_logger: AuditLogger,
         knowledge_store: KnowledgeStore,
+        trainer: Trainer | None = None,
     ) -> None:
         self._event_bus = event_bus
         self._pool_registry = pool_registry
         self._work_item_store = work_item_store
         self._audit_logger = audit_logger
         self._knowledge_store = knowledge_store
+        self._trainer = trainer
         self._subscription_ids: list[str] = []
 
     async def start(self) -> None:
@@ -168,6 +174,24 @@ class PoolOrchestrator:
             correlation_id=item.correlation_id,
         )
         await self._audit_logger.append(audit_entry)
+
+        if self._trainer is not None:
+            context_summary = {
+                "customer_id": item.context.get("customer_id", ""),
+                "correlation_id": item.correlation_id or "",
+                "outcome_success": item.status == WorkItemStatus.COMPLETED,
+                "confidence_score": 0.8,  # default for work items
+                "execution_status": "COMPLETED",
+                "qa_status": "PASSED",
+                "approval_method": "AUTO_APPROVED",
+            }
+            correlation_id = item.correlation_id or ""
+            artifact_dicts = []
+            for a in item.artifacts:
+                d = a.model_dump()
+                d.setdefault("source_run_id", correlation_id)
+                artifact_dicts.append(d)
+            await self._trainer.review_and_train(context_summary, artifact_dicts)
 
     async def _handle_pool_status_event(self, envelope: Envelope) -> None:
         """Handle pool status updates (currently just logs)."""
