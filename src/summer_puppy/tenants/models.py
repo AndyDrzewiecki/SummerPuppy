@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
-from summer_puppy.trust.models import ActionClass  # noqa: TC001
+from summer_puppy.trust.models import ActionClass, AutoApprovalPolicy  # noqa: TC001
 
 
 class MaintenanceWindow(BaseModel):
@@ -39,6 +39,7 @@ class TenantProfile(BaseModel):
     max_concurrent_executions: int = 5
     require_dry_run: bool = True
     auto_rollback_on_verify_fail: bool = True
+    auto_approval_policies: list[AutoApprovalPolicy] = Field(default_factory=list)
     created_utc: datetime = Field(default_factory=lambda: datetime.now(tz=UTC))
 
 

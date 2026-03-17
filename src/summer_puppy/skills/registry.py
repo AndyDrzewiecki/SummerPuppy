@@ -39,3 +39,6 @@ class InMemorySkillRegistry:
 
     def update_cluster_profile(self, profile: ClusterSkillProfile) -> None:
         self._cluster_profiles[profile.cluster_id] = profile
+
+    def list_agent_profiles(self) -> list[SkillProfile]:
+        return list(self._agent_profiles.values())
