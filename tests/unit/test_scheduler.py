@@ -392,7 +392,8 @@ async def _request(app, method: str, path: str, **kwargs):
 
 class TestSchedulerAPI:
     @pytest.mark.asyncio
-    async def test_list_jobs_returns_empty(self, app) -> None:
+    async def test_list_jobs_returns_wired_jobs(self, app) -> None:
+        """Auto-wiring registers the two built-in scheduled jobs."""
         token = _admin_token()
         response = await _request(
             app,
@@ -401,7 +402,10 @@ class TestSchedulerAPI:
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 200
-        assert response.json() == []
+        data = response.json()
+        names = {j["name"] for j in data}
+        assert "expire_protected_assets" in names
+        assert "expire_policies" in names
 
     @pytest.mark.asyncio
     async def test_list_jobs_requires_admin(self, app) -> None:

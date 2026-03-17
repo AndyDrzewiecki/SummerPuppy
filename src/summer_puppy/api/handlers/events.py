@@ -28,7 +28,9 @@ async def _process_event_background(event: SecurityEvent, state: AppState) -> No
     tenant = state.tenant_store.get(event.customer_id)
     # TenantProfile does not carry AutoApprovalPolicy objects directly;
     # pass an empty list when no external policy store is wired.
-    policies: list[AutoApprovalPolicy] = [] if tenant is None else []
+    policies: list[AutoApprovalPolicy] = (
+        tenant.auto_approval_policies if tenant is not None else []
+    )
     if state.orchestrator is not None:
         ctx = await state.orchestrator.process_event(event, trust_profile, policies)
         state.event_registry[event.event_id] = ctx

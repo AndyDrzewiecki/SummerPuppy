@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 from uuid import uuid4
 
 from summer_puppy.audit.logger import AuditLogger  # noqa: TC001
@@ -105,6 +106,27 @@ class Orchestrator:
 
         return ctx
 
+    async def resume_from_context(self, ctx: PipelineContext) -> PipelineContext:
+        """Resume a paused pipeline from its current stage."""
+        async with correlation_context(ctx.correlation_id):
+            start_index = _STAGE_ORDER.index(ctx.current_stage)
+            for stage in _STAGE_ORDER[start_index:]:
+                if ctx.current_stage != stage:
+                    continue
+                handler = self._handlers.get(stage)
+                if handler is None:
+                    continue
+                try:
+                    ctx = await handler.handle(ctx)
+                except Exception as exc:
+                    ctx.current_stage = PipelineStage.ERROR
+                    ctx.status = PipelineStatus.FAILED
+                    ctx.error_detail = str(exc)
+                    return ctx
+                if ctx.status == PipelineStatus.PAUSED_FOR_APPROVAL:
+                    return ctx
+        return ctx
+
     @classmethod
     def build_default(
         cls,
@@ -113,6 +135,8 @@ class Orchestrator:
         llm_client: LLMClient | None = None,
         knowledge_store: KnowledgeStore | None = None,
         execution_sandbox: ExecutionSandbox | None = None,
+        # NotificationDispatcher | None -- typed as Any to avoid circular import
+        notification_dispatcher: Any | None = None,
     ) -> Orchestrator:
         """Create an orchestrator with all default handlers registered."""
         orch = cls(audit_logger=audit_logger, event_bus=event_bus)
@@ -164,7 +188,11 @@ class Orchestrator:
             )
         orch.register_handler(
             PipelineStage.APPROVE,
-            TrustApprovalHandler(audit_logger=audit_logger, event_bus=event_bus),
+            TrustApprovalHandler(
+                audit_logger=audit_logger,
+                event_bus=event_bus,
+                notification_dispatcher=notification_dispatcher,
+            ),
         )
         if execution_sandbox is not None:
             orch.register_handler(

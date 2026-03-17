@@ -49,6 +49,10 @@ async def test_health_response_schema(app):
 
 
 async def test_health_orchestrator_ready_false_when_none(app):
+    from summer_puppy.api.state import init_app_state
+
+    state = init_app_state()
+    state.orchestrator = None  # explicitly clear auto-wired orchestrator
     response = await _get(app, "/api/v1/health")
     data = response.json()
     assert data["orchestrator_ready"] is False
@@ -100,6 +104,10 @@ async def test_live_no_auth_required(app):
 
 
 async def test_ready_503_when_no_orchestrator(app):
+    from summer_puppy.api.state import init_app_state
+
+    state = init_app_state()
+    state.orchestrator = None  # explicitly clear auto-wired orchestrator
     response = await _get(app, "/api/v1/ready")
     assert response.status_code == 503
 

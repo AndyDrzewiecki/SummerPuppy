@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from datetime import UTC, datetime, timedelta
 
 import jwt
@@ -17,10 +16,11 @@ _DEFAULT_SECRET = "dev-secret-change-in-prod"
 
 
 def _get_secret() -> str:
-    secret = os.environ.get("APP_SECRET_KEY", "")
-    if not secret:
+    from summer_puppy.api.settings import get_settings
+
+    secret = get_settings().app_secret_key
+    if secret == _DEFAULT_SECRET:
         logger.warning("jwt_using_default_secret")
-        return _DEFAULT_SECRET
     return secret
 
 

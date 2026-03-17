@@ -387,9 +387,15 @@ class LLMRecommendHandler:
 class TrustApprovalHandler:
     """Real approval handler using trust scoring and auto-approval policies."""
 
-    def __init__(self, audit_logger: AuditLogger, event_bus: EventBus) -> None:
+    def __init__(
+        self,
+        audit_logger: AuditLogger,
+        event_bus: EventBus,
+        notification_dispatcher: Any | None = None,
+    ) -> None:
         self._audit_logger = audit_logger
         self._event_bus = event_bus
+        self._notification_dispatcher = notification_dispatcher
 
     async def handle(self, ctx: PipelineContext) -> PipelineContext:
         assert ctx.recommendation is not None, "Recommendation required at APPROVE stage"
@@ -438,6 +444,22 @@ class TrustApprovalHandler:
             )
             await self._audit_logger.append(entry)
             ctx.audit_entry_ids.append(entry.entry_id)
+
+            if self._notification_dispatcher is not None:
+                from summer_puppy.notifications.models import AlertEvent, AlertSeverity
+
+                alert = AlertEvent(
+                    customer_id=ctx.customer_id,
+                    severity=AlertSeverity.HIGH,
+                    title=f"Approval required: {ctx.event.title}",
+                    body=(
+                        f"Event {ctx.event.event_id} requires human approval.\n"
+                        f"Recommendation: {ctx.recommendation.description}\n"
+                        f"Confidence: {ctx.recommendation.confidence_score:.0%}"
+                    ),
+                    correlation_id=ctx.correlation_id,
+                )
+                await self._notification_dispatcher.dispatch(alert)
 
         else:
             # AUTONOMOUS or FULL_AUTONOMY — trust level permits action

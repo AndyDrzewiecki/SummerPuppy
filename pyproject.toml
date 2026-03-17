@@ -9,6 +9,7 @@ description = "Autonomous security operations and remediation platform"
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.6,<3",
+    "pydantic-settings>=2.0,<3",
     "neo4j>=5.17,<7",
     "langgraph>=0.2,<1",
     "anthropic>=0.40,<1",

@@ -19,7 +19,10 @@ if TYPE_CHECKING:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Manage application startup and shutdown."""
-    state = init_app_state()
+    from summer_puppy.api.settings import get_settings
+
+    settings = get_settings()
+    state = init_app_state(settings=settings)
     state.started_utc = datetime.now(tz=UTC)
     if state.job_runner is not None:
         await state.job_runner.start()

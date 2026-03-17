@@ -346,7 +346,7 @@ class TestBackgroundProcessing:
 
     async def test_background_task_no_orchestrator_graceful(self, app, headers, valid_body, state):
         """When no orchestrator configured, background task completes without updating registry."""
-        assert state.orchestrator is None
+        state.orchestrator = None  # explicitly clear the auto-wired orchestrator
         resp = await _request(
             app, "post", "/api/v1/cust-1/events", json=valid_body, headers=headers
         )

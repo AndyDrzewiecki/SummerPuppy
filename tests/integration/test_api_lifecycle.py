@@ -16,27 +16,14 @@ from summer_puppy.api.auth.api_key_handler import generate_api_key
 from summer_puppy.api.auth.jwt_handler import create_token
 from summer_puppy.api.state import init_app_state, reset_app_state
 from summer_puppy.audit.logger import verify_chain
-from summer_puppy.channel.bus import InMemoryEventBus
-from summer_puppy.notifications.dispatcher import NotificationDispatcher
-from summer_puppy.pipeline.orchestrator import Orchestrator
 
 
 @pytest.fixture(autouse=True)
 def reset_state():
-    """Fresh AppState for every test; wires orchestrator with stub handlers."""
+    """Fresh AppState for every test; auto-wiring handles orchestrator setup."""
     reset_app_state()
     state = init_app_state()
-
-    event_bus = InMemoryEventBus()
-    orchestrator = Orchestrator.build_default(
-        audit_logger=state.audit_logger,
-        event_bus=event_bus,
-    )
-    state.orchestrator = orchestrator
-    state.notification_dispatcher = NotificationDispatcher(mock_mode=True)
-
     yield state
-
     reset_app_state()
 
 
