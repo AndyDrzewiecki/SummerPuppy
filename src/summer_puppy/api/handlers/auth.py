@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from summer_puppy.api.auth.api_key_handler import generate_api_key
@@ -65,13 +66,14 @@ async def create_api_key(
     return CreateKeyResponse(key_id=api_key.key_id, raw_key=raw_key, customer_id=body.customer_id)
 
 
-@router.delete("/keys/{key_id}", status_code=204)
+@router.delete("/keys/{key_id}", status_code=204, response_class=Response)
 async def revoke_api_key(
     key_id: str,
     _: str = Depends(require_admin),  # noqa: B008
     state: AppState = Depends(get_app_state),  # noqa: B008
-) -> None:
+) -> Response:
     """Revoke an API key (admin scope required)."""
     revoked = state.tenant_store.revoke_api_key(key_id)
     if not revoked:
         raise HTTPException(status_code=404, detail="API key not found")
+    return Response(status_code=204)

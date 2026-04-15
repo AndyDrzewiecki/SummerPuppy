@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from summer_puppy.skills.evaluator import RunEvaluator
+from summer_puppy.skills.injector import SkillInjector
 from summer_puppy.skills.kb import InMemorySkillKnowledgeBase, SkillKnowledgeBase
 from summer_puppy.skills.models import (
     ArtifactPromotionDecision,
@@ -15,6 +16,7 @@ from summer_puppy.skills.models import (
     TrainingRecommendation,
 )
 from summer_puppy.skills.promotion import PromotionEngine
+from summer_puppy.skills.prompt_enricher import NullPromptEnricher, PromptEnricher
 from summer_puppy.skills.registry import InMemorySkillRegistry, SkillRegistry
 from summer_puppy.skills.trainer import Trainer
 from summer_puppy.trust.models import ActionClass as _ActionClass
@@ -28,11 +30,14 @@ __all__ = [
     "InMemorySkillKnowledgeBase",
     "InMemorySkillRegistry",
     "KnowledgeArticle",
+    "NullPromptEnricher",
     "PlaybookTemplate",
     "PromotionEngine",
     "PromotionLevel",
+    "PromptEnricher",
     "RunEvaluator",
     "RunReview",
+    "SkillInjector",
     "SkillKnowledgeBase",
     "SkillProfile",
     "SkillRegistry",

@@ -12,6 +12,7 @@ from summer_puppy.api.handlers.health import router as health_router
 from summer_puppy.api.handlers.notifications import router as notifications_router
 from summer_puppy.api.handlers.policies import router as policies_router
 from summer_puppy.api.handlers.reporting import router as reporting_router
+from summer_puppy.api.handlers.sandbox import router as sandbox_router
 from summer_puppy.api.handlers.scheduler import router as scheduler_router
 
 main_router = APIRouter(prefix="/api/v1")
@@ -24,3 +25,4 @@ main_router.include_router(reporting_router, prefix="/customers", tags=["reporti
 main_router.include_router(notifications_router, prefix="/customers", tags=["notifications"])
 main_router.include_router(scheduler_router, tags=["scheduler"])
 main_router.include_router(approvals_router, prefix="/customers", tags=["approvals"])
+main_router.include_router(sandbox_router, prefix="/customers", tags=["sandbox"])

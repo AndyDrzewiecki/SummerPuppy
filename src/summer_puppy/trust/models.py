@@ -64,6 +64,28 @@ class PhaseTransition(BaseModel):
     approved_by: str
 
 
+class SevOneAutoTriageConfig(BaseModel):
+    """Configuration for automatic SEV-1 (CRITICAL) incident response bypass.
+
+    When enabled, CRITICAL-severity events bypass the human approval gate and execute
+    the recommended containment action immediately. A notification is dispatched to
+    operators after the action completes.
+    """
+
+    enabled: bool = False
+    allowed_action_classes: list[ActionClass] = Field(
+        default_factory=lambda: [
+            ActionClass.NETWORK_ISOLATION,
+            ActionClass.PROCESS_TERMINATION,
+            ActionClass.ACCOUNT_LOCKOUT,
+            ActionClass.BLOCK_IP,
+            ActionClass.DISABLE_ACCOUNT,
+        ]
+    )
+    require_rollback_plan: bool = True
+    min_confidence_score: float = Field(default=0.7, ge=0, le=1)
+
+
 class TrustProfile(BaseModel):
     customer_id: str
     trust_phase: TrustPhase = TrustPhase.MANUAL
@@ -73,6 +95,7 @@ class TrustProfile(BaseModel):
     positive_outcome_rate: float = Field(default=0.0, ge=0, le=1)
     last_evaluated_utc: datetime | None = None
     phase_transition_history: list[PhaseTransition] = Field(default_factory=list)
+    sev_one_config: SevOneAutoTriageConfig = Field(default_factory=SevOneAutoTriageConfig)
 
 
 class ApprovalCheckResult(BaseModel):

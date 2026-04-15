@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 
 from summer_puppy.api.middleware.auth_middleware import verify_customer_path
 from summer_puppy.api.schemas.notifications import (
@@ -73,17 +74,19 @@ async def list_channels(
 @router.delete(
     "/{customer_id}/notifications/channels/{channel_id}",
     status_code=204,
+    response_class=Response,
     dependencies=[Depends(verify_customer_path)],
 )
 async def delete_channel(
     customer_id: str,
     channel_id: str,
     state: AppState = Depends(get_app_state),  # noqa: B008
-) -> None:
+) -> Response:
     dispatcher = _get_dispatcher(state)
     removed = dispatcher.deregister_channel(channel_id)
     if not removed:
         raise HTTPException(status_code=404, detail="Channel not found")
+    return Response(status_code=204)
 
 
 @router.post(

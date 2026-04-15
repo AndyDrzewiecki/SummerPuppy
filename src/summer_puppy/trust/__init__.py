@@ -5,6 +5,7 @@ from summer_puppy.trust.models import (
     AutoApprovalPolicy,
     PhaseTransition,
     PolicyStatus,
+    SevOneAutoTriageConfig,
     TrustPhase,
     TrustProfile,
 )
@@ -21,6 +22,7 @@ __all__ = [
     "AutoApprovalPolicy",
     "PhaseTransition",
     "PolicyStatus",
+    "SevOneAutoTriageConfig",
     "TrustPhase",
     "TrustProfile",
     "calculate_trust_score",

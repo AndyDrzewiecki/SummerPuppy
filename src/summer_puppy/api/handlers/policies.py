@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 
 from summer_puppy.api.middleware.auth_middleware import verify_customer_path
 from summer_puppy.api.schemas.policies import (
@@ -128,13 +129,14 @@ async def patch_policy(
 @router.delete(
     "/{customer_id}/policies/auto-approval/{policy_id}",
     status_code=204,
+    response_class=Response,
     dependencies=[Depends(verify_customer_path)],
 )
 async def delete_policy(
     customer_id: str,
     policy_id: str,
     state: AppState = Depends(get_app_state),  # noqa: B008
-) -> None:
+) -> Response:
     """Soft-delete (revoke) an auto-approval policy."""
     profile = _get_or_create_profile(state, customer_id)
     for i, p in enumerate(profile.auto_approval_policies):
@@ -150,7 +152,7 @@ async def delete_policy(
                 details={"action": "delete", "policy_id": policy_id},
             )
             asyncio.create_task(state.audit_logger.append(entry))
-            return
+            return Response(status_code=204)
     raise HTTPException(status_code=404, detail="Policy not found")
 
 
@@ -212,13 +214,14 @@ async def list_protected_assets(
 @router.delete(
     "/{customer_id}/policies/protected-assets/{asset_id}",
     status_code=204,
+    response_class=Response,
     dependencies=[Depends(verify_customer_path)],
 )
 async def remove_protected_asset(
     customer_id: str,
     asset_id: str,
     state: AppState = Depends(get_app_state),  # noqa: B008
-) -> None:
+) -> Response:
     """Remove a protected asset from a tenant profile."""
     profile = _get_or_create_profile(state, customer_id)
     original_len = len(profile.protected_assets)
@@ -226,3 +229,4 @@ async def remove_protected_asset(
     if len(profile.protected_assets) == original_len:
         raise HTTPException(status_code=404, detail="Protected asset not found")
     state.tenant_store.save(profile)
+    return Response(status_code=204)

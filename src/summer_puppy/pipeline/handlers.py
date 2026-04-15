@@ -397,8 +397,79 @@ class TrustApprovalHandler:
         self._event_bus = event_bus
         self._notification_dispatcher = notification_dispatcher
 
+    def _check_sev_one_bypass(self, ctx: PipelineContext) -> bool:
+        """Return True if this CRITICAL event should bypass the approval gate.
+
+        Conditions (all must hold):
+        - sev_one_config.enabled is True on the trust profile
+        - Event severity is CRITICAL
+        - Recommendation action_class is in the allowed list
+        - Confidence score meets the minimum threshold
+        - rollback_plan is present (if require_rollback_plan is set)
+        """
+        assert ctx.recommendation is not None
+        config = ctx.trust_profile.sev_one_config
+        if not config.enabled:
+            return False
+        if ctx.event.severity.value != "CRITICAL":
+            return False
+        if ctx.recommendation.action_class not in config.allowed_action_classes:
+            return False
+        if ctx.recommendation.confidence_score < config.min_confidence_score:
+            return False
+        if config.require_rollback_plan and ctx.recommendation.rollback_plan is None:
+            return False
+        return True
+
     async def handle(self, ctx: PipelineContext) -> PipelineContext:
         assert ctx.recommendation is not None, "Recommendation required at APPROVE stage"
+
+        # SEV-1 auto-triage: CRITICAL events bypass the approval gate when configured
+        if self._check_sev_one_bypass(ctx):
+            action_request = ActionRequest(
+                recommendation_id=ctx.recommendation.recommendation_id,
+                customer_id=ctx.customer_id,
+                action_class=ctx.recommendation.action_class,
+                approval_method=ApprovalMethod.AUTO_APPROVED,
+                approved_by="sev_one_auto_triage",
+            )
+            ctx.action_request = action_request
+            ctx.current_stage = PipelineStage.EXECUTE
+
+            entry = AuditEntry(
+                customer_id=ctx.customer_id,
+                entry_type=AuditEntryType.AUTO_APPROVED,
+                actor="system",
+                correlation_id=ctx.correlation_id,
+                resource_id=ctx.recommendation.recommendation_id,
+                details={
+                    "reason": "SEV-1 auto-triage: CRITICAL event bypassed approval gate",
+                    "action_class": ctx.recommendation.action_class.value,
+                    "confidence": ctx.recommendation.confidence_score,
+                },
+            )
+            await self._audit_logger.append(entry)
+            ctx.audit_entry_ids.append(entry.entry_id)
+
+            if self._notification_dispatcher is not None:
+                from summer_puppy.notifications.models import AlertEvent, AlertSeverity
+
+                alert = AlertEvent(
+                    customer_id=ctx.customer_id,
+                    severity=AlertSeverity.CRITICAL,
+                    title=f"[SEV-1 AUTO-TRIAGE] Executing: {ctx.recommendation.action_class.value}",
+                    body=(
+                        f"CRITICAL event auto-triaged without human approval.\n"
+                        f"Event: {ctx.event.title}\n"
+                        f"Action: {ctx.recommendation.description}\n"
+                        f"Confidence: {ctx.recommendation.confidence_score:.0%}\n"
+                        f"Rollback available: {ctx.recommendation.rollback_plan is not None}"
+                    ),
+                    correlation_id=ctx.correlation_id,
+                )
+                await self._notification_dispatcher.dispatch(alert)
+
+            return ctx
 
         approval_dict = ctx.recommendation.to_approval_dict()
         result = check_auto_approval(
