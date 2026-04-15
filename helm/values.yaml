@@ -1,0 +1,39 @@
+replicaCount: 1
+
+image:
+  repository: summer-puppy
+  tag: "0.2.0"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8000
+
+ollama:
+  enabled: true
+  image: ollama/ollama:latest
+  model: llama3
+  persistence:
+    enabled: true
+    size: 20Gi
+
+config:
+  ollamaEnabled: true
+  llmEnabled: false
+  logLevel: INFO
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+
+ollamaResources:
+  requests:
+    cpu: 1000m
+    memory: 4Gi
+  limits:
+    cpu: 4000m
+    memory: 8Gi

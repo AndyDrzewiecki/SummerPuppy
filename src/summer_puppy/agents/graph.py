@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 
     from summer_puppy.events.models import SecurityEvent
     from summer_puppy.llm.client import LLMClient
+    from summer_puppy.skills.prompt_enricher import PromptEnricher
     from summer_puppy.trust.models import TrustProfile
 
 
@@ -30,6 +31,7 @@ class AgentState(TypedDict):
     customer_id: str
     trust_profile: dict[str, Any]
     knowledge_context: dict[str, Any]
+    enriched_context: str
     analysis: dict[str, Any] | None
     recommendation: dict[str, Any] | None
     severity_route: str
@@ -54,8 +56,13 @@ def _route_severity(state: AgentState) -> str:
 class SecurityAnalysisGraph:
     """Orchestrates security event analysis via a LangGraph state graph."""
 
-    def __init__(self, llm_client: LLMClient) -> None:
+    def __init__(
+        self,
+        llm_client: LLMClient,
+        prompt_enricher: PromptEnricher | None = None,
+    ) -> None:
         self._llm_client = llm_client
+        self._enricher = prompt_enricher
         self._compiled = self._build_graph()
 
     def _build_graph(self) -> CompiledStateGraph:  # type: ignore[type-arg]
@@ -88,11 +95,19 @@ class SecurityAnalysisGraph:
         knowledge_context: dict[str, Any] | None = None,
     ) -> AgentResult:
         """Run the graph with the given inputs and return an AgentResult."""
+        enriched_context = ""
+        if self._enricher is not None:
+            enriched_context = await self._enricher.build_context(
+                customer_id=event.customer_id,
+                event_tags=event.tags,
+                action_class=None,
+            )
         initial_state: AgentState = {
             "event": event.model_dump(),
             "customer_id": event.customer_id,
             "trust_profile": trust_profile.model_dump(),
             "knowledge_context": knowledge_context or {},
+            "enriched_context": enriched_context,
             "analysis": None,
             "recommendation": None,
             "severity_route": "",

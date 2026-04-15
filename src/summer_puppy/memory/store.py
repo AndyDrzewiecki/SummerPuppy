@@ -98,7 +98,14 @@ class InMemoryKnowledgeStore:
         self, customer_id: str, limit: int = 50
     ) -> list[dict[str, Any]]:
         filtered = [s for s in self._work_item_summaries if s.get("customer_id") == customer_id]
-        return filtered[:limit]
+        # Also include artifacts (playbooks, KB articles) stored via store_artifact
+        artifact_summaries = [
+            v
+            for v in self._artifacts_store.values()
+            if v.get("customer_id") == customer_id
+        ]
+        combined = filtered + artifact_summaries
+        return combined[:limit]
 
     async def store_artifact(self, artifact_id: str, artifact_data: dict[str, Any]) -> None:
         self._artifacts_store[artifact_id] = {**artifact_data, "artifact_id": artifact_id}

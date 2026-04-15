@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     neo4j_user: str = "neo4j"
     neo4j_password: str = ""
     llm_enabled: bool = False
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "llama3"
+    ollama_enabled: bool = False
+    ollama_timeout_seconds: float = 60.0
     log_level: str = "INFO"
     cors_origins: list[str] = ["*"]
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")

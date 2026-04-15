@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -13,7 +14,6 @@ from summer_puppy.sandbox.models import (
     IndicatorOfCompromise,
     IoCType,
     SampleSubmission,
-    SampleType,
     SandboxVerdict,
 )
 
@@ -154,7 +154,7 @@ def _parse_findings(raw_findings: list[dict[str, Any]]) -> list[Finding]:
     for raw in raw_findings:
         iocs = []
         for raw_ioc in raw.get("ioc_indicators", []):
-            try:
+            with contextlib.suppress(ValueError, KeyError):
                 iocs.append(
                     IndicatorOfCompromise(
                         ioc_type=IoCType(raw_ioc["ioc_type"]),
@@ -163,10 +163,8 @@ def _parse_findings(raw_findings: list[dict[str, Any]]) -> list[Finding]:
                         context=raw_ioc.get("context", ""),
                     )
                 )
-            except (ValueError, KeyError):
-                pass
 
-        try:
+        with contextlib.suppress(ValueError, KeyError):
             findings.append(
                 Finding(
                     category=FindingCategory(raw["category"]),
@@ -181,8 +179,6 @@ def _parse_findings(raw_findings: list[dict[str, Any]]) -> list[Finding]:
                     confidence=float(raw.get("confidence", 0.5)),
                 )
             )
-        except (ValueError, KeyError):
-            pass
     return findings
 
 

@@ -137,6 +137,8 @@ class Orchestrator:
         execution_sandbox: ExecutionSandbox | None = None,
         # NotificationDispatcher | None -- typed as Any to avoid circular import
         notification_dispatcher: Any | None = None,
+        # PromptEnricher | None -- typed as Any to avoid circular import
+        prompt_enricher: Any | None = None,
     ) -> Orchestrator:
         """Create an orchestrator with all default handlers registered."""
         orch = cls(audit_logger=audit_logger, event_bus=event_bus)
@@ -165,6 +167,7 @@ class Orchestrator:
                     llm_client=llm_client,
                     audit_logger=audit_logger,
                     event_bus=event_bus,
+                    prompt_enricher=prompt_enricher,
                 ),
             )
         else:
@@ -179,6 +182,7 @@ class Orchestrator:
                     llm_client=llm_client,
                     audit_logger=audit_logger,
                     event_bus=event_bus,
+                    prompt_enricher=prompt_enricher,
                 ),
             )
         else:

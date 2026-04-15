@@ -28,6 +28,7 @@ class AppState:
     job_runner: Any | None = None
     event_bus: Any | None = None
     pool_orchestrator: Any | None = None
+    skill_injector: Any | None = None
     started_utc: datetime | None = None
     version: str = "0.2.0"
 
@@ -60,19 +61,24 @@ def _wire_app_state(state: AppState, settings: Settings | None) -> None:
     from summer_puppy.scheduler.jobs import (
         expire_policies_handler,
         expire_protected_assets_handler,
+        run_skill_injection_handler,
     )
     from summer_puppy.scheduler.models import ScheduledJob
     from summer_puppy.scheduler.runner import AsyncJobRunner
+    from summer_puppy.skills.prompt_enricher import NullPromptEnricher
     from summer_puppy.trust.models import AutoApprovalPolicy  # noqa: TC001
 
     _s = settings or get_settings()  # noqa: F841 (may be used in Sprint 8 llm_enabled check)
     event_bus = InMemoryEventBus()
     state.event_bus = event_bus
     state.notification_dispatcher = NotificationDispatcher(mock_mode=True)
+
+    _null_enricher = NullPromptEnricher()
     state.orchestrator = Orchestrator.build_default(
         audit_logger=state.audit_logger,
         event_bus=event_bus,
         notification_dispatcher=state.notification_dispatcher,
+        prompt_enricher=_null_enricher,
     )
 
     runner = AsyncJobRunner()
@@ -87,6 +93,16 @@ def _wire_app_state(state: AppState, settings: Settings | None) -> None:
 
     job2 = ScheduledJob(name="expire_policies", interval_seconds=300)
     runner.add_job(job2, _expire_policies)
+
+    async def _run_injection() -> dict[str, Any]:
+        customer_ids = [p.customer_id for p in state.tenant_store.list_all()]
+        return await run_skill_injection_handler(
+            skill_injector=state.skill_injector,
+            customer_ids=customer_ids,
+        )
+
+    job3 = ScheduledJob(name="skill_injection", interval_seconds=600)
+    runner.add_job(job3, _run_injection)
     state.job_runner = runner
 
 

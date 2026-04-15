@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-summer-puppy
+  labels:
+    app: summer-puppy
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: summer-puppy
+  template:
+    metadata:
+      labels:
+        app: summer-puppy
+    spec:
+      containers:
+        - name: summer-puppy
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 8000
+          env:
+            - name: OLLAMA_BASE_URL
+              value: "http://{{ .Release.Name }}-ollama:11434"
+            - name: OLLAMA_MODEL
+              value: {{ .Values.ollama.model | quote }}
+            - name: OLLAMA_ENABLED
+              value: {{ .Values.config.ollamaEnabled | quote }}
+            - name: LLM_ENABLED
+              value: {{ .Values.config.llmEnabled | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.config.logLevel | quote }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+        {{- if .Values.ollama.enabled }}
+        - name: ollama
+          image: {{ .Values.ollama.image | quote }}
+          ports:
+            - containerPort: 11434
+          resources:
+            {{- toYaml .Values.ollamaResources | nindent 12 }}
+          volumeMounts:
+            - name: ollama-data
+              mountPath: /root/.ollama
+        {{- end }}
+      volumes:
+        {{- if .Values.ollama.enabled }}
+        - name: ollama-data
+          {{- if .Values.ollama.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-ollama-pvc
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- end }}

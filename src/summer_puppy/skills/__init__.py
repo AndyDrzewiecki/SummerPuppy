@@ -15,6 +15,12 @@ from summer_puppy.skills.models import (
     SkillProfile,
     TrainingRecommendation,
 )
+from summer_puppy.skills.performance import (
+    AgentPerformanceTracker,
+    DegradationAlert,
+    DegradationAlertType,
+    PerformanceWindow,
+)
 from summer_puppy.skills.promotion import PromotionEngine
 from summer_puppy.skills.prompt_enricher import NullPromptEnricher, PromptEnricher
 from summer_puppy.skills.registry import InMemorySkillRegistry, SkillRegistry
@@ -25,12 +31,16 @@ from summer_puppy.trust.models import ActionClass as _ActionClass
 PlaybookTemplate.model_rebuild(_types_namespace={"ActionClass": _ActionClass})
 
 __all__ = [
+    "AgentPerformanceTracker",
     "ArtifactPromotionDecision",
     "ClusterSkillProfile",
+    "DegradationAlert",
+    "DegradationAlertType",
     "InMemorySkillKnowledgeBase",
     "InMemorySkillRegistry",
     "KnowledgeArticle",
     "NullPromptEnricher",
+    "PerformanceWindow",
     "PlaybookTemplate",
     "PromotionEngine",
     "PromotionLevel",

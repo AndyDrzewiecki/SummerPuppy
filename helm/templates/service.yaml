@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-summer-puppy
+spec:
+  selector:
+    app: summer-puppy
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: 8000
+  type: {{ .Values.service.type }}

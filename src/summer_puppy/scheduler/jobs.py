@@ -58,6 +58,33 @@ async def expire_policies_handler(
     return expired_count
 
 
+async def run_skill_injection_handler(
+    skill_injector: Any | None,
+    customer_ids: list[str] | None = None,
+) -> dict[str, Any]:
+    """Run SkillInjector.run_injection_cycle for each active customer.
+
+    Returns a dict with total counts across all customers.
+    """
+    if skill_injector is None:
+        return {"skipped": True, "total_injected": 0}
+
+    ids = customer_ids or []
+    total_injected = 0
+    customers_processed = 0
+
+    for cid in ids:
+        result = await skill_injector.run_injection_cycle(cid)
+        total_injected += result.get("total_injected", 0)
+        customers_processed += 1
+
+    return {
+        "skipped": False,
+        "total_injected": total_injected,
+        "customers_processed": customers_processed,
+    }
+
+
 async def cleanup_stale_work_items_handler(pool_orchestrator: Any | None) -> int:
     """Detect stalled work items via the pool orchestrator.
 

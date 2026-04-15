@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+
+if TYPE_CHECKING:
+    from summer_puppy.skills.prompt_enricher import PromptEnricher
 
 from summer_puppy.audit.logger import (  # noqa: TC001
     AuditLogger,
@@ -149,10 +152,12 @@ class LLMAnalyzeHandler:
         llm_client: LLMClient,
         audit_logger: AuditLogger,
         event_bus: EventBus,
+        prompt_enricher: PromptEnricher | None = None,
     ) -> None:
         self._llm_client = llm_client
         self._audit_logger = audit_logger
         self._event_bus = event_bus
+        self._prompt_enricher = prompt_enricher
 
     async def handle(self, ctx: PipelineContext) -> PipelineContext:
         try:
@@ -198,6 +203,13 @@ class LLMAnalyzeHandler:
         knowledge_context = ctx.metadata.get(
             "knowledge_context", "No historical context available"
         )
+        if self._prompt_enricher is not None:
+            enriched = await self._prompt_enricher.build_context(
+                customer_id=ctx.customer_id,
+                event_tags=ctx.event.tags,
+                action_class=None,
+            )
+            knowledge_context = f"{knowledge_context}\n\n{enriched}"
         prompt = ANALYZE_EVENT.render(
             title=ctx.event.title,
             source=ctx.event.source,
@@ -277,10 +289,12 @@ class LLMRecommendHandler:
         llm_client: LLMClient,
         audit_logger: AuditLogger,
         event_bus: EventBus,
+        prompt_enricher: PromptEnricher | None = None,
     ) -> None:
         self._llm_client = llm_client
         self._audit_logger = audit_logger
         self._event_bus = event_bus
+        self._prompt_enricher = prompt_enricher
 
     async def handle(self, ctx: PipelineContext) -> PipelineContext:
         try:
@@ -327,8 +341,16 @@ class LLMRecommendHandler:
 
     async def _run_llm_recommendation(self, ctx: PipelineContext) -> Recommendation:
         analysis = ctx.metadata.get("analysis", {})
+        analysis_summary = str(analysis)
+        if self._prompt_enricher is not None:
+            enriched = await self._prompt_enricher.build_context(
+                customer_id=ctx.customer_id,
+                event_tags=ctx.event.tags,
+                action_class=None,
+            )
+            analysis_summary = f"{analysis_summary}\n\n{enriched}"
         prompt = GENERATE_RECOMMENDATION.render(
-            analysis_summary=str(analysis),
+            analysis_summary=analysis_summary,
             title=ctx.event.title,
             severity=ctx.event.severity.value,
             affected_assets=str(ctx.event.affected_assets),
@@ -417,9 +439,7 @@ class TrustApprovalHandler:
             return False
         if ctx.recommendation.confidence_score < config.min_confidence_score:
             return False
-        if config.require_rollback_plan and ctx.recommendation.rollback_plan is None:
-            return False
-        return True
+        return not (config.require_rollback_plan and ctx.recommendation.rollback_plan is None)
 
     async def handle(self, ctx: PipelineContext) -> PipelineContext:
         assert ctx.recommendation is not None, "Recommendation required at APPROVE stage"
@@ -457,7 +477,10 @@ class TrustApprovalHandler:
                 alert = AlertEvent(
                     customer_id=ctx.customer_id,
                     severity=AlertSeverity.CRITICAL,
-                    title=f"[SEV-1 AUTO-TRIAGE] Executing: {ctx.recommendation.action_class.value}",
+                    title=(
+                        f"[SEV-1 AUTO-TRIAGE] Executing: "
+                        f"{ctx.recommendation.action_class.value}"
+                    ),
                     body=(
                         f"CRITICAL event auto-triaged without human approval.\n"
                         f"Event: {ctx.event.title}\n"

@@ -29,6 +29,10 @@ async def analyze_node(state: dict[str, Any], *, llm_client: LLMClient) -> dict[
 
     try:
         knowledge_context = state.get("knowledge_context", {})
+        enriched_context = state.get("enriched_context", "")
+        combined_context = str(knowledge_context)
+        if enriched_context:
+            combined_context = f"{combined_context}\n\n{enriched_context}"
         prompt = ANALYZE_EVENT.render(
             title=event.get("title", ""),
             source=event.get("source", ""),
@@ -36,7 +40,7 @@ async def analyze_node(state: dict[str, Any], *, llm_client: LLMClient) -> dict[
             description=event.get("description", ""),
             affected_assets=", ".join(event.get("affected_assets", [])),
             raw_payload=str(event.get("raw_payload", {})),
-            knowledge_context=str(knowledge_context),
+            knowledge_context=combined_context,
         )
 
         output_schema: dict[str, Any] = {
@@ -93,8 +97,12 @@ async def recommend_node(state: dict[str, Any], *, llm_client: LLMClient) -> dic
     existing_trace: list[str] = list(state.get("reasoning_trace") or [])
 
     try:
+        enriched_context = state.get("enriched_context", "")
+        analysis_summary = str(analysis)
+        if enriched_context:
+            analysis_summary = f"{analysis_summary}\n\n{enriched_context}"
         prompt = GENERATE_RECOMMENDATION.render(
-            analysis_summary=str(analysis),
+            analysis_summary=analysis_summary,
             title=event.get("title", ""),
             severity=event.get("severity", ""),
             affected_assets=str(event.get("affected_assets", [])),

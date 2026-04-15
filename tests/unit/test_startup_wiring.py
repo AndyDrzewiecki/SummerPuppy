@@ -29,12 +29,12 @@ def test_notification_dispatcher_is_wired():
     assert state.notification_dispatcher is not None
 
 
-def test_two_scheduled_jobs_registered():
+def test_scheduled_jobs_registered():
     state = init_app_state()
     assert state.job_runner is not None
     jobs = state.job_runner.get_jobs()
     names = {j.name for j in jobs}
-    assert names == {"expire_protected_assets", "expire_policies"}
+    assert names == {"expire_protected_assets", "expire_policies", "skill_injection"}
 
 
 @pytest.mark.asyncio
