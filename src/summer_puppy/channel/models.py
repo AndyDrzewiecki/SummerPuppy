@@ -20,6 +20,8 @@ class Topic(StrEnum):
     POOL_STATUS = "POOL_STATUS"
     ARTIFACTS = "ARTIFACTS"
     DECISIONS = "DECISIONS"
+    DEV_BOT_TRIGGERS = "DEV_BOT_TRIGGERS"
+    DEV_BOT_PR_EVENTS = "DEV_BOT_PR_EVENTS"
 
 
 class Envelope(BaseModel):

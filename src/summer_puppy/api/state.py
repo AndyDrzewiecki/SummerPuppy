@@ -29,6 +29,7 @@ class AppState:
     event_bus: Any | None = None
     pool_orchestrator: Any | None = None
     skill_injector: Any | None = None
+    dev_bot_handler: Any | None = None
     started_utc: datetime | None = None
     version: str = "0.2.0"
 

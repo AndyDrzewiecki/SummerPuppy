@@ -24,7 +24,7 @@ class TestTopic:
         assert Topic.PHASE_TRANSITIONS == "PHASE_TRANSITIONS"
 
     def test_member_count(self) -> None:
-        assert len(Topic) == 11
+        assert len(Topic) == 13
 
     def test_cross_pool_topic_values(self) -> None:
         assert Topic.WORK_ITEMS == "WORK_ITEMS"
